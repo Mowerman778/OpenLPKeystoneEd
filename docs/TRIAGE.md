@@ -40,7 +40,7 @@ real display or media hardware to verify.
 | #2011 | Not honoring screen height % in iframe tags | Render tag parsing. **[fixable here]** | TODO |
 | #1944 | Windows uses display-screen text size on both screens | Per-screen scaling. **[needs Windows]** | TODO |
 | #1499 | Web remote "show black" won't go dark on main view | Blank-state sync. **[fixable here?]** | TODO |
-| #1982 | Duplicate song search does not work | Search logic. **[fixable here]** | TODO |
+| #1982 | Duplicate song search does not work | **Diagnosed:** `duplicatesongremovalform.custom_page_changed` builds a `multiprocessing.Pool` mid-method. The worker inputs/outputs are already picklable (`song_generator` yields `(pos, search_lyrics)` tuples; `songs_probably_equal` returns `(pos1, pos2)`/`None`) — so it is NOT a pickling failure. On macOS/Windows the default start-method is **spawn**, and a Pool created this way inside the frozen GUI app fails to bootstrap workers, so `imap_unordered` yields nothing and the result loop never runs → reports "no duplicates". On Linux (fork) it works, so it can't be reproduced/verified on the dev box. `freeze_support()` is already present (`__main__.py:74`). **Fix plan:** replace the process Pool with a serial (or chunked) in-process comparison — also lighter on modest PCs — behind a small testable helper; keep an optional parallel path only if a perf need is proven. **[needs Windows/macOS to verify]** | DIAGNOSED |
 
 > The **[fixable here]** items are the near-term queue; **[needs Windows/VLC]** items are staged for
 > verification on the user's Windows laptop and to be re-tested once video-behind-lyrics work begins.
