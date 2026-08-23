@@ -1327,6 +1327,11 @@ class ServiceManager(QtWidgets.QWidget, RegistryBase, Ui_ServiceManager, LogMixi
         """
         Remove the current ServiceItem from the list.
         """
+        # A child slide/verse row can't be removed on its own; ignore the request instead of deleting
+        # (and prompting to delete) the whole parent item, which caused accidental data loss (issue #2186).
+        item, child = self.find_service_item()
+        if item == -1 or child != -1:
+            return
         need_confirmation: bool = self.settings.value('advanced/delete service item confirmation')
         if (
             not need_confirmation or
@@ -1617,9 +1622,13 @@ class ServiceManager(QtWidgets.QWidget, RegistryBase, Ui_ServiceManager, LogMixi
     def delete_item(self):
         """
         Remove the current item from the service.
+
+        Only whole (top-level) service items can be removed. If a child slide/verse row is selected we
+        do nothing, rather than silently deleting the entire parent item, which surprised users into
+        accidentally losing whole songs with no way to undo (issue #2186).
         """
-        item = self.find_service_item()[0]
-        if item != -1:
+        item, child = self.find_service_item()
+        if item != -1 and child == -1:
             self.service_items.remove(self.service_items[item])
             self.repaint_service_list(item - 1, -1)
             self.set_modified()

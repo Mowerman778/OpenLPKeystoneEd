@@ -1234,6 +1234,40 @@ def test_on_delete_from_service_confirmation_disabled(settings: Settings, servic
     assert len(service_manager.service_items) == 0
 
 
+def test_on_delete_from_service_child_slide_selected_is_noop(settings: Settings,
+                                                             service_manager: ServiceManager):
+    """
+    Test that deleting while a child slide/verse row is selected does not remove the whole item (#2186)
+    """
+    # GIVEN delete confirmation is disabled and a selection that points at a child slide (child != -1)
+    settings.setValue('advanced/delete service item confirmation', False)
+    _add_song_service_item(service_manager)
+    service_manager.find_service_item = MagicMock(return_value=(0, 2))
+
+    # WHEN the on_delete_from_service function is called with the child selected
+    service_manager._delete_confirmation_dialog = MagicMock()
+    service_manager.on_delete_from_service()
+
+    # THEN the parent item is NOT deleted and no confirmation was even shown
+    assert len(service_manager.service_items) == 1
+    service_manager._delete_confirmation_dialog.assert_not_called()
+
+
+def test_delete_item_child_slide_selected_is_noop(service_manager: ServiceManager):
+    """
+    Test delete_item() itself is a no-op when a child slide row is selected (defence in depth, #2186)
+    """
+    # GIVEN a service item and a selection pointing at a child slide (child != -1)
+    _add_song_service_item(service_manager)
+    service_manager.find_service_item = MagicMock(return_value=(0, 2))
+
+    # WHEN delete_item is called directly
+    service_manager.delete_item()
+
+    # THEN the parent item survives
+    assert len(service_manager.service_items) == 1
+
+
 def test_on_delete_from_service_confirmation_enabled_choose_delete(settings: Settings,
                                                                    service_manager: ServiceManager):
     """

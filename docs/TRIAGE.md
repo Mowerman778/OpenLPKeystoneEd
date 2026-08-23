@@ -11,7 +11,7 @@ real display or media hardware to verify.
 | Issue | Title | Notes | Status |
 |-------|-------|-------|--------|
 | #2006 / #2146 | `ValueError: Unknown author type: translate` | Legacy alias in real song DBs crashes song edit/render. **[fixable here]** | ✅ FIXED |
-| #2186 | Pressing delete on a verse deletes the whole song | Editor selection/shortcut bug. **[fixable here]** | TODO |
+| #2186 | Pressing delete on a verse deletes the whole song | Service manager deleted parent when a child slide was selected. **[fixable here]** | ✅ FIXED |
 | #1995 | Song export ignores checked state | Export selection bug. **[fixable here]** | TODO |
 | #2266 | Sometimes shows only 3 lines per slide | Renderer/textFit edge case. **[needs display]** | TODO |
 
