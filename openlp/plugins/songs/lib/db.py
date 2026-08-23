@@ -108,6 +108,7 @@ The song database contains the following tables:
     * id
     * name
 """
+import logging
 from typing import Optional
 
 from sqlalchemy import Column, ForeignKey, Table
@@ -120,6 +121,8 @@ from openlp.core.common.i18n import get_natural_key, translate
 from openlp.core.db.types import PathType
 from openlp.core.db.helpers import init_db
 
+
+log = logging.getLogger(__name__)
 
 Base = declarative_base()
 
@@ -150,9 +153,34 @@ class AuthorType(object):
         WordsAndMusic,
         Translation
     ]
+    # Legacy/alternate spellings that have ended up in real song databases and must be
+    # mapped onto a known type so we never crash when displaying them (see issues #2006, #2146).
+    LegacyAliases = {
+        'translate': Translation,
+        'translated': Translation,
+        'word': Words,
+        'lyrics': Words,
+        'wordsandmusic': WordsAndMusic,
+        'words and music': WordsAndMusic,
+    }
+
+    @classmethod
+    def normalise(cls, author_type: Optional[str]) -> str:
+        """
+        Map a raw author type onto a known :class:`AuthorType` value.
+
+        Unknown values are coerced to :attr:`NoType` rather than raising, so a single
+        stray value in a song database can never take down song editing or rendering.
+        """
+        if not author_type:
+            return cls.NoType
+        if author_type in cls.SortedTypes:
+            return author_type
+        return cls.LegacyAliases.get(author_type.strip().lower(), cls.NoType)
 
     @classmethod
     def get_translated_type(cls, author_type: str) -> str:
+        author_type = cls.normalise(author_type)
         if author_type == cls.NoType:
             return ''
         elif author_type == cls.Words:
@@ -168,7 +196,10 @@ class AuthorType(object):
             return translate('SongsPlugin.AuthorType', 'Translation',
                              'Author who translated the song')
 
-        raise ValueError(f'Unknown author type: {author_type}')
+        # normalise() only ever returns a known type or NoType, so this is unreachable;
+        # kept defensive and non-fatal in case SortedTypes and this method drift apart.
+        log.warning('Unknown author type: %s', author_type)
+        return ''
 
     @classmethod
     def get_translated_types(cls):

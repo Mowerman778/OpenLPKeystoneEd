@@ -167,6 +167,64 @@ def test_author_get_display_name_with_type_translation():
     assert "John Doe (Translation)" == display_name
 
 
+def test_get_translated_type_legacy_alias():
+    """
+    Test that a legacy author type alias ('translate') is mapped to a known type (issue #2006/#2146)
+    """
+    # GIVEN: A song database containing the legacy author type 'translate'
+    # WHEN: We ask for its translated (display) form
+    translated = AuthorType.get_translated_type('translate')
+
+    # THEN: It should resolve to the Translation label instead of raising ValueError
+    assert translated == AuthorType.get_translated_type(AuthorType.Translation)
+    assert translated == 'Translation'
+
+
+def test_get_translated_type_unknown_is_non_fatal():
+    """
+    Test that a completely unknown author type degrades gracefully instead of crashing
+    """
+    # GIVEN: An author type that matches no known type or alias
+    # WHEN: We ask for its translated form
+    translated = AuthorType.get_translated_type('definitely-not-a-real-type')
+
+    # THEN: It should return an empty string rather than raising (song editing/rendering
+    #       must never crash on a single stray value)
+    assert translated == ''
+
+
+def test_normalise_author_type():
+    """
+    Test AuthorType.normalise() maps known types, aliases, and unknowns correctly
+    """
+    # Known types pass through unchanged
+    assert AuthorType.normalise(AuthorType.Words) == AuthorType.Words
+    assert AuthorType.normalise(AuthorType.Translation) == AuthorType.Translation
+    # Legacy aliases are mapped (case/whitespace-insensitive)
+    assert AuthorType.normalise('translate') == AuthorType.Translation
+    assert AuthorType.normalise('  Translate ') == AuthorType.Translation
+    assert AuthorType.normalise('lyrics') == AuthorType.Words
+    # Empty / None / unknown become NoType
+    assert AuthorType.normalise('') == AuthorType.NoType
+    assert AuthorType.normalise(None) == AuthorType.NoType
+    assert AuthorType.normalise('bogus') == AuthorType.NoType
+
+
+def test_author_get_display_name_with_legacy_type():
+    """
+    Test that an author with a legacy 'translate' type still renders a display name (issue #2006/#2146)
+    """
+    # GIVEN: An author whose stored type is the legacy alias 'translate'
+    author = Author()
+    author.display_name = "John Doe"
+
+    # WHEN: We build the display name (as the song editor and footer rendering do)
+    display_name = author.get_display_name('translate')
+
+    # THEN: It should render with the Translation label instead of crashing
+    assert "John Doe (Translation)" == display_name
+
+
 def test_add_songbooks():
     """
     Test that adding songbooks to a song works correctly
