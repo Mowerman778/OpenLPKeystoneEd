@@ -1,0 +1,64 @@
+# OpenLPUG continuous integration
+#
+# Runs the lint + test suite on Windows (the primary target) and Linux (parity).
+# Mirrors the upstream GitLab pipeline: flake8 for lint, pytest for tests. GUI
+# tests need an offscreen/virtual display, handled per-platform below.
+name: CI
+
+on:
+  push:
+    branches: [openlpug-main]
+  pull_request:
+  workflow_dispatch:
+
+jobs:
+  lint:
+    name: Lint (flake8)
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+      - run: python -m pip install --upgrade pip flake8
+      - name: flake8
+        run: flake8
+
+  test-windows:
+    name: Test (Windows)
+    runs-on: windows-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+      - name: Install VLC (for python-vlc bindings)
+        run: choco install vlc --no-progress -y
+      - name: Install project + test deps
+        run: |
+          python -m pip install --upgrade pip
+          pip install -e ".[test,mp4]"
+      - name: Run tests
+        env:
+          # Qt offscreen platform so pytest-qt runs without a real display
+          QT_QPA_PLATFORM: offscreen
+        run: pytest --color=no --disable-warnings
+
+  test-linux:
+    name: Test (Linux, parity)
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+      - name: System deps (Qt/xvfb/ICU)
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y xvfb libicu-dev pkg-config libegl1 libxkbcommon0
+      - name: Install project + test deps
+        run: |
+          python -m pip install --upgrade pip
+          pip install -e ".[test]"
+      - name: Run tests (xvfb)
+        run: xvfb-run -s '-screen 0 1024x768x24' pytest --color=no --disable-warnings
