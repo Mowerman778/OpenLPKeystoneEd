@@ -41,7 +41,9 @@ list
 node_modules
 openlp.cfg
 openlp.pro
-openlp/core/resources.py
+# OpenLPUG: resources.py is generated (pyrcc5), but we TRACK it in the fork so a fresh clone, CI, and
+# the PyInstaller build all work with no extra tooling. Regenerate + commit only when icons/qrc change
+# (see README.OpenLPUG.md). The backup file stays ignored.
 openlp/core/resources.py.old
 openlp/plugins/presentations/lib/vendor/*
 output
