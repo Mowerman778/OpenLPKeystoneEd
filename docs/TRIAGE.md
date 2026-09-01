@@ -12,7 +12,7 @@ real display or media hardware to verify.
 |-------|-------|-------|--------|
 | #2006 / #2146 | `ValueError: Unknown author type: translate` | Legacy alias in real song DBs crashes song edit/render. **[fixable here]** | ✅ FIXED |
 | #2186 | Pressing delete on a verse deletes the whole song | Service manager deleted parent when a child slide was selected. **[fixable here]** | ✅ FIXED |
-| #1995 | Song export ignores checked state | Export selection bug. **[fixable here]** | TODO |
+| #1995 | Song export ignores checked state | Bare `if item.checkState()` truthy on newer PyQt5 (Qt.CheckState is a Python enum) → all songs exported. Now compares `== Qt.Checked`. **[fixable here]** | ✅ FIXED |
 | #2266 | Sometimes shows only 3 lines per slide | Renderer/textFit edge case. **[needs display]** | TODO |
 
 ## Crashes / stability
@@ -21,7 +21,7 @@ real display or media hardware to verify.
 | #2261 | Crashes when I try to save | Needs repro detail. | TODO |
 | #2034 | 3.1.7 crash on Windows 11 when window is shrunk | Layout/min-size. **[needs Windows]** | TODO |
 | #1323 | RuntimeError: wrapped C/C++ QTreeWidgetItem has been deleted | Lifetime/teardown race. **[fixable here]** | TODO |
-| #2200 | macOS crash: remote web interface Bible search | API path. **[fixable here]** | TODO |
+| #2200 | macOS crash: remote web interface Bible search | `get_verses()` popped a Qt dialog from the web-server background thread (aborts on macOS, unsafe everywhere). Now guarded by `is_in_gui_thread()` → logs off-thread. **[fixable here]** | ✅ FIXED |
 
 ## Display / video / media — (also underpins Phase 2 video-behind-lyrics + PiP)
 | Issue | Title | Notes | Status |
@@ -37,7 +37,7 @@ real display or media hardware to verify.
 ## Other confirmed bugs
 | Issue | Title | Notes | Status |
 |-------|-------|-------|--------|
-| #2011 | Not honoring screen height % in iframe tags | Render tag parsing. **[fixable here]** | TODO |
+| #2011 | Not honoring screen height % in iframe tags | An `<iframe height=100%>` collapses to ~10% because its parent (the reveal.js slide/foreground box) has no resolved height, so a percentage height has nothing to resolve against (px works). Fix is CSS in `display.css` — give the slide content container a definite height (e.g. `height:100%`/flex) up the chain. **[needs display to verify — staged with #1941/#1245]** | DIAGNOSED |
 | #1944 | Windows uses display-screen text size on both screens | Per-screen scaling. **[needs Windows]** | TODO |
 | #1499 | Web remote "show black" won't go dark on main view | Blank-state sync. **[fixable here?]** | TODO |
 | #1982 | Duplicate song search does not work | **Diagnosed:** `duplicatesongremovalform.custom_page_changed` builds a `multiprocessing.Pool` mid-method. The worker inputs/outputs are already picklable (`song_generator` yields `(pos, search_lyrics)` tuples; `songs_probably_equal` returns `(pos1, pos2)`/`None`) — so it is NOT a pickling failure. On macOS/Windows the default start-method is **spawn**, and a Pool created this way inside the frozen GUI app fails to bootstrap workers, so `imap_unordered` yields nothing and the result loop never runs → reports "no duplicates". On Linux (fork) it works, so it can't be reproduced/verified on the dev box. `freeze_support()` is already present (`__main__.py:74`). **Fix plan:** replace the process Pool with a serial (or chunked) in-process comparison — also lighter on modest PCs — behind a small testable helper; keep an optional parallel path only if a perf need is proven. **[needs Windows/macOS to verify]** | DIAGNOSED |

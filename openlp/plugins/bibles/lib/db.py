@@ -47,6 +47,18 @@ log = logging.getLogger(__name__)
 RESERVED_CHARACTERS = '\\.^$*+?{}[]()'
 
 
+def is_in_gui_thread() -> bool:
+    """
+    Return True if the caller is running in the main (GUI) thread.
+
+    Bible lookups are also driven from the remote web server, which runs on a background thread. Showing
+    a Qt dialog from off the main thread aborts the process on macOS (SIGABRT) and is unsafe on every
+    platform, so callers must only raise UI from the GUI thread. See issue #2200.
+    """
+    app = QtCore.QCoreApplication.instance()
+    return app is not None and QtCore.QThread.currentThread() == app.thread()
+
+
 class BibleDB(DBManager):
     """
     This class represents a database-bound Bible. It is used as a base class for all the custom importers, so that
@@ -359,10 +371,16 @@ class BibleDB(DBManager):
                 log.debug('OpenLP failed to find book with id "{book}"'.format(book=book_id))
                 book_error = True
         if book_error and show_error:
-            critical_error_message_box(
-                translate('BiblesPlugin', 'No Book Found'),
-                translate('BiblesPlugin', 'No matching book '
-                          'could be found in this Bible. Check that you have spelled the name of the book correctly.'))
+            title = translate('BiblesPlugin', 'No Book Found')
+            message = translate('BiblesPlugin', 'No matching book '
+                                'could be found in this Bible. Check that you have spelled the name of the book '
+                                'correctly.')
+            if is_in_gui_thread():
+                critical_error_message_box(title, message)
+            else:
+                # Called from a background thread (e.g. the remote web server) — a Qt dialog here would
+                # crash macOS and is unsafe everywhere, so log instead of raising UI. See issue #2200.
+                log.error('%s %s (reference: %s)', title, message, reference_list)
         return verse_list
 
     def verse_search(self, text: str):

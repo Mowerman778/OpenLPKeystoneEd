@@ -169,8 +169,12 @@ class SongExportForm(OpenLPWizard):
         if self.currentPage() == self.welcome_page:
             return True
         elif self.currentPage() == self.available_songs_page:
+            # Compare explicitly against Checked: in newer PyQt5 Qt.CheckState is a Python enum whose
+            # members are all truthy, so a bare `if item.checkState()` treated Unchecked songs as
+            # selected and exported everything regardless of the checkboxes (issue #1995).
             items = [
-                item for item in find_list_widget_items(self.available_list_widget) if item.checkState()
+                item for item in find_list_widget_items(self.available_list_widget)
+                if item.checkState() == QtCore.Qt.Checked
             ]
             if not items:
                 critical_error_message_box(
