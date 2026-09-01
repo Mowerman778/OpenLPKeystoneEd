@@ -36,7 +36,7 @@ from openlp.core.common.enum import AlertLocation, BibleSearch, CustomSearch, Hi
     DisplayStyle, LanguageSelection, SongFirstSlideMode, SongSearch, PluginStatus
 from openlp.core.common.json import OpenLPJSONDecoder, OpenLPJSONEncoder, is_serializable
 from openlp.core.common.path import files_to_paths, str_to_path
-from openlp.core.common.platform import is_linux, is_win
+from openlp.core.common.platform import is_linux, is_low_spec_hardware, is_win
 from openlp.core.ui.style import UiThemes
 
 
@@ -272,6 +272,9 @@ class Settings(QtCore.QSettings):
         'core/last version test': '',
         'core/live preview shows blank screen': False,
         'core/loop delay': 5,
+        # Low-resource mode: 'auto' picks the default from the hardware (see is_low_resource_mode()),
+        # 'on'/'off' force it. Keeps OpenLP light on modest PCs while heavier features stay gate-able.
+        'core/low resource mode': 'auto',
         'core/recent files': [],
         'core/screens': '{}',
         'core/screen blank': False,
@@ -682,6 +685,24 @@ class Settings(QtCore.QSettings):
         if self.group():
             key = self.group() + '/' + key
         return Settings.__default_settings__[key]
+
+    def is_low_resource_mode(self):
+        """
+        Resolve whether OpenLP should run in low-resource mode.
+
+        The ``core/low resource mode`` setting is a tri-state: ``'on'``/``'off'`` force the mode, while
+        ``'auto'`` (the default) derives it from the hardware via
+        :func:`~openlp.core.common.platform.is_low_spec_hardware`. This is the single gate other code
+        should consult before enabling heavier, optional behaviour.
+
+        :return: True if low-resource mode is active, otherwise False.
+        """
+        value = str(self.value('core/low resource mode')).strip().lower()
+        if value in ('on', 'true', '1'):
+            return True
+        if value in ('off', 'false', '0'):
+            return False
+        return is_low_spec_hardware()
 
     def from_future(self):
         """

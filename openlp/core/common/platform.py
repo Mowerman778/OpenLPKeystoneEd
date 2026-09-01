@@ -122,3 +122,69 @@ def is_wayland_platform():
     """
     from PyQt5 import QtGui
     return QtGui.QGuiApplication.platformName() == 'wayland'
+
+
+# A "modest older PC" baseline (see the OpenLPUG low-resource-mode design): a dual-core CPU and/or
+# no more than ~4 GiB of RAM. These are the thresholds below which the low-resource default turns on.
+# Kept as named constants so they can be tuned from real measurements without touching the logic.
+LOW_SPEC_CPU_COUNT = 2
+LOW_SPEC_MEMORY_BYTES = 4 * 1024 ** 3
+
+
+def get_installed_memory():
+    """
+    Return the total physical RAM installed, in bytes, or None if it cannot be determined.
+
+    :return: Total physical memory in bytes, or None if the platform can't be queried.
+    """
+    try:
+        if is_win():
+            import ctypes
+
+            class MemoryStatusEx(ctypes.Structure):
+                _fields_ = [
+                    ('dwLength', ctypes.c_ulong),
+                    ('dwMemoryLoad', ctypes.c_ulong),
+                    ('ullTotalPhys', ctypes.c_ulonglong),
+                    ('ullAvailPhys', ctypes.c_ulonglong),
+                    ('ullTotalPageFile', ctypes.c_ulonglong),
+                    ('ullAvailPageFile', ctypes.c_ulonglong),
+                    ('ullTotalVirtual', ctypes.c_ulonglong),
+                    ('ullAvailVirtual', ctypes.c_ulonglong),
+                    ('ullAvailExtendedVirtual', ctypes.c_ulonglong),
+                ]
+
+            status = MemoryStatusEx()
+            status.dwLength = ctypes.sizeof(MemoryStatusEx)
+            if ctypes.windll.kernel32.GlobalMemoryStatusEx(ctypes.byref(status)):
+                return int(status.ullTotalPhys)
+            return None
+        # Linux and macOS both expose the physical page count via sysconf
+        if hasattr(os, 'sysconf') and 'SC_PHYS_PAGES' in os.sysconf_names and 'SC_PAGE_SIZE' in os.sysconf_names:
+            return int(os.sysconf('SC_PHYS_PAGES')) * int(os.sysconf('SC_PAGE_SIZE'))
+    except (OSError, ValueError, AttributeError):
+        pass
+    return None
+
+
+__IS_LOW_SPEC_HARDWARE = None
+
+
+def is_low_spec_hardware():
+    """
+    Return True if this machine looks like modest/older hardware (few CPU cores and/or little RAM).
+
+    Used to pick the default for low-resource mode so OpenLP stays light on the kind of PC many small
+    churches run, while leaving heavier features available (and gate-able) on better hardware. The result
+    is cached because the hardware does not change while OpenLP is running.
+
+    :return: True if the machine is at or below the modest-hardware thresholds, otherwise False.
+    """
+    global __IS_LOW_SPEC_HARDWARE
+    if __IS_LOW_SPEC_HARDWARE is None:
+        cpu_count = os.cpu_count()
+        memory = get_installed_memory()
+        low_cpu = cpu_count is not None and cpu_count <= LOW_SPEC_CPU_COUNT
+        low_memory = memory is not None and memory <= LOW_SPEC_MEMORY_BYTES
+        __IS_LOW_SPEC_HARDWARE = bool(low_cpu or low_memory)
+    return __IS_LOW_SPEC_HARDWARE

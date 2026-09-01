@@ -53,6 +53,54 @@ def test_default_value(settings):
     assert default_value is False, 'The default value should be False'
 
 
+def test_is_low_resource_mode_default_is_auto(settings):
+    """Test the low resource mode setting defaults to 'auto'"""
+    # GIVEN/WHEN: A fresh settings object
+    # THEN: The stored default is 'auto'
+    assert Settings().value('core/low resource mode') == 'auto'
+
+
+@patch('openlp.core.common.settings.is_low_spec_hardware')
+def test_is_low_resource_mode_forced_on(mocked_low_spec, settings):
+    """Test that 'on' forces low resource mode regardless of the hardware"""
+    # GIVEN: The mode is forced on, on capable hardware
+    mocked_low_spec.return_value = False
+    Settings().setValue('core/low resource mode', 'on')
+
+    # WHEN/THEN: It resolves to True without even consulting the hardware
+    assert Settings().is_low_resource_mode() is True
+    mocked_low_spec.assert_not_called()
+
+
+@patch('openlp.core.common.settings.is_low_spec_hardware')
+def test_is_low_resource_mode_forced_off(mocked_low_spec, settings):
+    """Test that 'off' forces low resource mode off even on modest hardware"""
+    # GIVEN: The mode is forced off, on low-spec hardware
+    mocked_low_spec.return_value = True
+    Settings().setValue('core/low resource mode', 'off')
+
+    # WHEN/THEN: It resolves to False without consulting the hardware
+    assert Settings().is_low_resource_mode() is False
+    mocked_low_spec.assert_not_called()
+
+
+@patch('openlp.core.common.settings.is_low_spec_hardware')
+def test_is_low_resource_mode_auto_follows_hardware(mocked_low_spec, settings):
+    """Test that 'auto' delegates to the hardware detection"""
+    # GIVEN: The mode is left on 'auto'
+    Settings().setValue('core/low resource mode', 'auto')
+
+    # WHEN: The hardware is modest
+    mocked_low_spec.return_value = True
+    # THEN: Low resource mode is on
+    assert Settings().is_low_resource_mode() is True
+
+    # WHEN: The hardware is capable
+    mocked_low_spec.return_value = False
+    # THEN: Low resource mode is off
+    assert Settings().is_low_resource_mode() is False
+
+
 def test_save_new_value(settings):
     """Test saving a new setting"""
     # GIVEN: A setting that hasn't been saved yet
