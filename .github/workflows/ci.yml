@@ -56,13 +56,18 @@ jobs:
       - uses: actions/setup-python@v5
         with:
           python-version: '3.12'
-      - name: System deps (Qt/xvfb/ICU)
+      - name: System deps (Qt/xvfb/ICU + pyrcc5 for the resource drift check)
         run: |
           sudo apt-get update
-          sudo apt-get install -y xvfb libicu-dev pkg-config libegl1 libxkbcommon0
+          sudo apt-get install -y xvfb libicu-dev pkg-config libegl1 libxkbcommon0 pyqt5-dev-tools
       - name: Install project + test deps
         run: |
           python -m pip install --upgrade pip
           pip install -e ".[test]"
+      - name: Check tracked resources.py matches openlp-2.qrc
+        # We track the generated resources.py; this fails the build if it drifts from the .qrc/images
+        # (someone edited the source but didn't regenerate + recommit). Compares decompressed contents,
+        # so it's robust to pyrcc5 version/compression differences.
+        run: python scripts/check_resources_current.py
       - name: Run tests (xvfb)
         run: xvfb-run -s '-screen 0 1024x768x24' pytest --color=no --disable-warnings

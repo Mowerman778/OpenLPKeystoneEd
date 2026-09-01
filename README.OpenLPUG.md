@@ -48,7 +48,9 @@ Gotchas on Windows (all one-time):
 - **`openlp/core/resources.py`** is a generated file (from `resources/images/openlp-2.qrc`). The fork
   **tracks** it so a clone/CI/build works out of the box. Only regenerate when icons/the `.qrc` change:
   `pyrcc5 -o openlp/core/resources.py resources/images/openlp-2.qrc` (on Linux, `apt install pyqt5-dev-tools`
-  first), then commit it. `flake8` already excludes this file.
+  first), then commit it. `flake8` already excludes this file. CI runs
+  `scripts/check_resources_current.py`, which **fails the build if the tracked file drifts** from the
+  `.qrc`/images (compares decompressed resource contents, so it's robust to pyrcc5 version differences).
 
 CI (lint + Windows/Linux tests) is defined in [`.github/workflows/ci.yml`](.github/workflows/ci.yml).
 Windows packaging lives in [`packaging/`](packaging/).
