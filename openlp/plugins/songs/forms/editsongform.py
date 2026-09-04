@@ -655,7 +655,8 @@ class EditSongForm(QtWidgets.QDialog, Ui_EditSongDialog, RegistryProperties):
                                                     translate('SongsPlugin.EditSongForm',
                                                               'Choose type for this author'),
                                                     AuthorType.get_translated_types_list(),
-                                                    current=AuthorType.SortedTypes.index(author_type),
+                                                    current=AuthorType.SortedTypes.index(
+                                                        AuthorType.normalise(author_type)),
                                                     editable=False)
         if not ok:
             return

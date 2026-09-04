@@ -172,11 +172,20 @@ class AuthorType(object):
         Unknown values are coerced to :attr:`NoType` rather than raising, so a single
         stray value in a song database can never take down song editing or rendering.
         """
-        if not author_type:
+        if not author_type or not isinstance(author_type, str):
+            # Non-string values (a stray int from a hand-edited DB) previously
+            # raised AttributeError here, which is exactly what this is meant
+            # to prevent.
             return cls.NoType
         if author_type in cls.SortedTypes:
             return author_type
-        return cls.LegacyAliases.get(author_type.strip().lower(), cls.NoType)
+        cleaned = author_type.strip().lower()
+        # Check the canonical values again after cleaning, so that casing and
+        # padding variants ('Words', 'WORDS+MUSIC', 'words ') resolve to the
+        # real type instead of silently falling through to NoType.
+        if cleaned in cls.SortedTypes:
+            return cleaned
+        return cls.LegacyAliases.get(cleaned, cls.NoType)
 
     @classmethod
     def get_translated_type(cls, author_type: str) -> str:
