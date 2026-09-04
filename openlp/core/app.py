@@ -516,6 +516,10 @@ def main():
     hidpi_mode = settings.value('advanced/hidpi mode')
     apply_dpi_adjustments_stage_qt(hidpi_mode, qt_args)
     # Instantiating QCoreApplication
+    # Qt WebEngine requires a shared OpenGL context, and the attribute is only honoured when it is
+    # set before the QApplication is constructed. OpenLP never set it; on Windows the display's
+    # QtWebEngineView is created without one, which is implicated in the first-paint Qt5 crash.
+    QtWidgets.QApplication.setAttribute(QtCore.Qt.ApplicationAttribute.AA_ShareOpenGLContexts)
     init_webview_custom_schemes()
     application = QtWidgets.QApplication(qt_args)
     application.setAttribute(QtCore.Qt.AA_DontCreateNativeWidgetSiblings, True)
