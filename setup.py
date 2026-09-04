@@ -107,10 +107,12 @@ using a computer and a display/projector.""",
         'Mako',
         'packaging',
         'platformdirs',
-        # OpenLPUG: excluded on Windows. The only prebuilt Windows wheels bundle their own ICU
-        # build, which pulls a second MSVC runtime into the process and corrupts the heap --
-        # OpenLP crashes non-deterministically at startup. get_locale_key() already falls back
-        # to locale.strxfrm, which costs locale-aware collation only for non-ASCII names.
+        # OpenLPUG: excluded on Windows. In the prebuilt ICU 78.3 wheels, `import icu` faults
+        # inside ICU's own global mutex before it is initialised (UMutex::lock ->
+        # MSVCP140!mtx_do_lock on an invalid pointer), taking the process down at whatever point
+        # get_locale_key() first runs. get_locale_key() already falls back to locale.strxfrm,
+        # which costs locale-aware collation only for non-ASCII names. The marker only stops pip
+        # pulling PyICU -- an installed copy is still imported at runtime, so keep it uninstalled.
         'PyICU; platform_system!="Windows"',
         'pymediainfo >= 2.2',
         'pyobjc; platform_system=="Darwin"',
