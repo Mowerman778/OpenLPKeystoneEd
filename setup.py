@@ -107,7 +107,11 @@ using a computer and a display/projector.""",
         'Mako',
         'packaging',
         'platformdirs',
-        'PyICU',
+        # OpenLPUG: excluded on Windows. The only prebuilt Windows wheels bundle their own ICU
+        # build, which pulls a second MSVC runtime into the process and corrupts the heap --
+        # OpenLP crashes non-deterministically at startup. get_locale_key() already falls back
+        # to locale.strxfrm, which costs locale-aware collation only for non-ASCII names.
+        'PyICU; platform_system!="Windows"',
         'pymediainfo >= 2.2',
         'pyobjc; platform_system=="Darwin"',
         'pyobjc-framework-Cocoa; platform_system=="Darwin"',

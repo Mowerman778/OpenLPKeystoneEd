@@ -34,10 +34,6 @@ jobs:
           python-version: '3.12'
       - name: Install VLC (for python-vlc bindings)
         run: choco install vlc --no-progress -y
-      - name: Install PyICU (no PyPI wheel on Windows — use cgohlke prebuilt)
-        # PyICU has no Windows wheel on PyPI and its source build needs ICU dev libs + pkg-config.
-        # Install the matching prebuilt wheel first so the editable install below is satisfied.
-        run: pip install "https://github.com/cgohlke/pyicu-build/releases/download/v2.16.2/pyicu-2.16.2-cp312-cp312-win_amd64.whl"
       - name: Install project + test deps
         run: |
           python -m pip install --upgrade pip
