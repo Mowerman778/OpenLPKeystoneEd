@@ -27,6 +27,7 @@ import logging
 from lxml import etree
 
 from openlp.core.widgets.wizard import WizardStrings
+from openlp.plugins.songs.lib.db import Song
 from openlp.plugins.songs.lib.importers.songimport import SongImport
 from openlp.plugins.songs.lib.openlyricsxml import OpenLyrics, OpenLyricsError
 from openlp.plugins.songs.lib.ui import SongStrings
@@ -70,7 +71,13 @@ class OpenLyricsImport(SongImport):
                         next_subelem = subelem.getnext()
                         self._strip_whitespace(subelem, next_subelem)
                 xml = etree.tostring(root).decode()
-                self.open_lyrics.xml_to_song(xml)
+                song = self.open_lyrics.xml_to_song(xml)
+                if song is None:
+                    # Not a valid OpenLyrics file (e.g. no <properties> element). This is commonly a song saved
+                    # in a different XML-based format, such as OpenSong, so fall back to trying that before
+                    # giving up - otherwise the file is silently skipped with no feedback at all. The fallback
+                    # logs its own error if it also fails to make sense of the file.
+                    self._try_import_as_opensong(file_path)
             except etree.XMLSyntaxError:
                 log.exception('XML syntax error in file {path}'.format(path=file_path))
                 self.log_error(file_path, SongStrings().XMLSyntaxError)
@@ -79,6 +86,29 @@ class OpenLyricsImport(SongImport):
                                                                                             name=file_path,
                                                                                             text=exception.log_message))
                 self.log_error(file_path, exception.display_message)
+
+    def _try_import_as_opensong(self, file_path):
+        """
+        Attempt to import a file that isn't valid OpenLyrics as an OpenSong song instead.
+
+        Both formats commonly use a bare ``<song>`` root tag, so a file exported from OpenSong (or a similar
+        tool) can easily end up here if the user leaves the wizard on its default "OpenLyrics" format.
+
+        :param file_path: The file that failed to parse as OpenLyrics.
+        :return: ``True`` if the file was successfully imported as OpenSong, ``False`` otherwise.
+        """
+        # Imported here to avoid a module-level circular import between the two importers.
+        from openlp.plugins.songs.lib.importers.opensong import OpenSongImport
+        songs_before = len(self.manager.get_all_objects(Song))
+        try:
+            with file_path.open('rb') as opensong_file:
+                # OpenSongImport.do_import_file() only relies on attributes/methods defined on the common
+                # SongImport base class, so it can be called against this OpenLyricsImport instance directly.
+                # It calls self.log_error() itself if the fallback also fails to parse.
+                OpenSongImport.do_import_file(self, opensong_file)
+        except (etree.Error, etree.LxmlError):
+            return False
+        return len(self.manager.get_all_objects(Song)) > songs_before
 
     def _strip_whitespace(self, elem, next_subelem=None):
         """

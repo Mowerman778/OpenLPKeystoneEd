@@ -547,7 +547,11 @@ var Display = {
       Display._animationState = AnimationState.ScrollingText;
       alertText.classList.add('scrolling');
       alertText.classList.replace("hide", "show");
-      var animationSettings = "alert-scrolling-text " + settings.timeout +
+      /* "speed" is the number of seconds it takes to scroll across the screen once - it is independent of
+         "timeout", which is only used to auto-hide non-scrolling alerts. Older settings payloads (or a stale
+         cached page) may not include it, so fall back to the previous behaviour of reusing "timeout". */
+      var scrollSeconds = (typeof settings.speed !== "undefined") ? settings.speed : settings.timeout;
+      var animationSettings = "alert-scrolling-text " + scrollSeconds +
                               "s linear 0.6s " + settings.repeat + " normal";
       alertText.style.animation = animationSettings;
     }

@@ -995,3 +995,56 @@ def test_run_in_display_dumps_json(display_window_env, mock_settings):
     # THEN: The parameters should be correctly converted to JSON
     display_window._run_javascript.assert_called_once_with('requestAction(\'test_event\', 1.23, "a \\"string\", '
                                                            '[1, 2, "test"], {"test1": "test2"})', False)
+
+
+def test_minimize_hides_the_display(display_window_env, mock_settings):
+    """
+    Test that minimize() hides the display window
+    """
+    # GIVEN: A DisplayWindow instance
+    display_window = DisplayWindow()
+    display_window.setVisible(True)
+
+    # WHEN: minimize() is called
+    display_window.minimize()
+
+    # THEN: The window should be hidden
+    assert display_window.isHidden() is True
+
+
+def test_context_menu_minimize_action_hides_display_window(display_window_env, mock_settings):
+    """
+    Test that right-clicking the actual projector display offers, and can trigger, "Minimize"
+    """
+    # GIVEN: A DisplayWindow that is a real projector display
+    display_window = DisplayWindow()
+    display_window.is_display = True
+    display_window.setVisible(True)
+    mocked_menu = MagicMock()
+    mocked_action = MagicMock()
+    mocked_menu.addAction.return_value = mocked_action
+    mocked_menu.exec.return_value = mocked_action
+
+    # WHEN: The context menu event fires and the user picks the (only) action
+    with patch('openlp.core.display.window.QtWidgets.QMenu', return_value=mocked_menu):
+        mocked_event = MagicMock()
+        display_window.contextMenuEvent(mocked_event)
+
+    # THEN: The display window should be hidden
+    assert display_window.isHidden() is True
+
+
+def test_context_menu_ignored_for_non_display_windows(display_window_env, mock_settings):
+    """
+    Test that the minimize context menu is not offered on non-projector DisplayWindow instances (e.g. previews)
+    """
+    # GIVEN: A DisplayWindow that is not the real projector display
+    display_window = DisplayWindow()
+    display_window.is_display = False
+
+    # WHEN: The context menu event fires
+    with patch('openlp.core.display.window.QtWidgets.QMenu') as mocked_menu_class:
+        display_window.contextMenuEvent(MagicMock())
+
+    # THEN: No menu should have been constructed
+    mocked_menu_class.assert_not_called()

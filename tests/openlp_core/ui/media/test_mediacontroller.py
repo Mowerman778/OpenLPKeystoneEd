@@ -1099,3 +1099,41 @@ def test_media_bar_loop_checked(media_env: MediaController, settings: Settings, 
     media_env.media_controller._media_bar(mocked_controller, "load")
     # THEN: The following functions should have been called
     mocked_controller.mediabar.actions['playbackLoop'].setChecked.assert_called_with(result)
+
+
+def test_update_seek_ui_unknown_duration_shows_elapsed(media_env: MediaController):
+    """
+    Test that _update_seek_ui() shows the elapsed playback time (rather than blanking the label and zeroing
+    the timer) when the media has no known duration, e.g. a live network stream.
+    """
+    # GIVEN: A controller playing media with no known end_time (as is typical for a network stream)
+    mocked_controller = MagicMock()
+    mocked_controller.media_info = ItemMediaInfo()
+    mocked_controller.media_info.end_time = 0
+    mocked_controller.media_info.timer = 65000  # 1:05 elapsed
+    mocked_controller.mediabar = MagicMock()
+
+    # WHEN: _update_seek_ui() is called
+    MediaController._update_seek_ui(mocked_controller)
+
+    # THEN: The elapsed time should be preserved (not clamped to 0) and shown on its own
+    assert mocked_controller.media_info.timer == 65000
+    mocked_controller.mediabar.position_label.setText.assert_called_with(' 01:05')
+
+
+def test_update_seek_ui_known_duration_shows_position(media_env: MediaController):
+    """
+    Test that _update_seek_ui() still shows "elapsed / total" when the duration is known
+    """
+    # GIVEN: A controller playing media with a known end_time
+    mocked_controller = MagicMock()
+    mocked_controller.media_info = ItemMediaInfo()
+    mocked_controller.media_info.end_time = 120000  # 2:00 total
+    mocked_controller.media_info.timer = 65000  # 1:05 elapsed
+
+    # WHEN: _update_seek_ui() is called
+    MediaController._update_seek_ui(mocked_controller)
+
+    # THEN: The elapsed/total time should be shown, unchanged from before
+    assert mocked_controller.media_info.timer == 65000
+    mocked_controller.mediabar.position_label.setText.assert_called_with(' 01:05 / 02:00')

@@ -198,3 +198,25 @@ def test_lines_spacing_is_correctly_trimmed(importer: OpenLyricsImport):
     # THEN: The song should be correctly trimmed on start and end
     import_content = importer.open_lyrics.xml_to_song.call_args[0][0]
     assert import_content == expected_content
+
+
+def test_opensong_fallback_when_not_openlyrics(registry, settings, tmp_path):
+    """
+    Test that OpenLyricsImport falls back to parsing a non-OpenLyrics <song> file (e.g. OpenSong) instead of
+    silently importing nothing.
+    """
+    from openlp.core.db.manager import DBManager
+    from openlp.plugins.songs.lib.db import init_schema, Song
+    from openlp.plugins.songs.lib.importers.openlyrics import OpenLyricsImport
+    from unittest.mock import MagicMock
+
+    manager = DBManager('songs', init_schema, db_file_path=tmp_path / 'songs.sqlite')
+    src = RESOURCE_PATH / 'songs' / 'opensong' / 'Amazing Grace'
+    importer = OpenLyricsImport(manager, file_paths=[src])
+    importer.import_wizard = MagicMock()
+
+    importer.do_import()
+
+    songs = manager.get_all_objects(Song)
+    assert len(songs) == 1
+    assert songs[0].title

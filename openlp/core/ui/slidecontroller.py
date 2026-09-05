@@ -1231,6 +1231,13 @@ class SlideController(QtWidgets.QWidget, LogMixin, RegistryProperties):
                     image_path = Path(self.service_item.get_rendered_frame(self.selected_row))
                     self.screen_capture = image_path
                     self.preview_display.set_single_image('#000', image_path)
+            elif self.is_live and not self.current_hide_mode and self.service_item.is_media():
+                # Video/stream playback is rendered by VLC directly onto the screen, bypassing the live preview
+                # panel's own display entirely, so without this the live preview stays blank the whole time
+                # media is playing. Grab a screen-cap of the main display instead, just like ProvidesOwnDisplay
+                # items do above.
+                wait_for(self.is_slide_loaded)
+                self.display_maindisplay()
             else:
                 self.preview_display.go_to_slide(self.selected_row)
             if (not self.current_hide_mode and self.preview_display.hide_mode):

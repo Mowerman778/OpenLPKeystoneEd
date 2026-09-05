@@ -25,17 +25,23 @@ from openlp.core.common.i18n import UiStrings, translate
 from openlp.core.lib.ui import create_button, create_button_box
 from openlp.core.ui.icons import UiIcons
 from openlp.core.widgets.edits import SpellTextEdit
+from openlp.core.widgets.songformattingpanel import SongFormattingPanel
 
 
 class Ui_CustomSlideEditDialog(object):
     def setup_ui(self, custom_slide_edit_dialog):
         custom_slide_edit_dialog.setObjectName('custom_slide_edit_dialog')
         custom_slide_edit_dialog.setWindowIcon(UiIcons().main_icon)
-        custom_slide_edit_dialog.resize(350, 300)
+        custom_slide_edit_dialog.resize(600, 350)
         self.dialog_layout = QtWidgets.QVBoxLayout(custom_slide_edit_dialog)
+        self.editor_layout = QtWidgets.QHBoxLayout()
+        self.editor_layout.setObjectName('editor_layout')
         self.slide_text_edit = SpellTextEdit(self)
         self.slide_text_edit.setObjectName('slide_text_edit')
-        self.dialog_layout.addWidget(self.slide_text_edit)
+        self.editor_layout.addWidget(self.slide_text_edit)
+        self.formatting_panel = SongFormattingPanel(self, self.slide_text_edit)
+        self.editor_layout.addWidget(self.formatting_panel)
+        self.dialog_layout.addLayout(self.editor_layout)
         self.split_button = create_button(custom_slide_edit_dialog, 'splitButton', icon=UiIcons().add)
         self.insert_button = create_button(custom_slide_edit_dialog, 'insertButton', icon=UiIcons().add)
         self.button_box = create_button_box(custom_slide_edit_dialog, 'button_box', ['cancel', 'save'],

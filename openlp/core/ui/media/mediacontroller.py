@@ -564,7 +564,9 @@ class MediaController(QtWidgets.QWidget, RegistryBase, LogMixin, RegistryPropert
 
     @staticmethod
     def _update_seek_ui(controller):
-        if controller.media_info.timer > controller.media_info.end_time:
+        # A network/device stream normally has no known duration (end_time stays 0), so there's nothing
+        # sensible to clamp the elapsed time to - don't zero it out on every tick in that case.
+        if controller.media_info.end_time and controller.media_info.timer > controller.media_info.end_time:
             controller.media_info.timer = controller.media_info.end_time
         if controller.media_info.timer < 0:
             controller.media_info.timer = 0
@@ -575,7 +577,9 @@ class MediaController(QtWidgets.QWidget, RegistryBase, LogMixin, RegistryPropert
         end_minutes = end_seconds // 60
         end_seconds %= 60
         if end_minutes == 0 and end_seconds == 0:
-            controller.mediabar.position_label.setText('')
+            # Duration unknown (e.g. a live network stream) - still show the elapsed playback time on its own,
+            # rather than hiding the position entirely.
+            controller.mediabar.position_label.setText(' %02d:%02d' % (minutes, seconds))
         else:
             controller.mediabar.position_label.setText(' %02d:%02d / %02d:%02d' %
                                                        (minutes, seconds, end_minutes, end_seconds))

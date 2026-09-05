@@ -1483,6 +1483,47 @@ def test_update_preview_media(settings: Settings):
     assert 0 == slide_controller.display_maindisplay.call_count, 'display_maindisplay() should NOT have been called'
 
 
+def test_update_preview_live_media(settings: Settings):
+    """
+    Test that the live preview panel gets a screen grab while a media/network-stream item is actually playing on
+    the live display. Media items don't set the ProvidesOwnDisplay capability (VLC renders straight onto the
+    screen instead), so without this the live preview panel would stay blank while media plays.
+    """
+    # GIVEN: A mocked live media/stream service item that does NOT provide its own display, a mocked Registry,
+    #        and a slide controller with many mocks.
+    mocked_media_item = MagicMock()
+    mocked_media_item.get_rendered_frame.return_value = ''
+    mocked_media_item.is_capable = MagicMock()
+    mocked_media_item.is_capable.return_value = False
+    mocked_media_item.is_media.return_value = True
+    mocked_main_window = MagicMock()
+    Registry().register('main_window', mocked_main_window)
+    # Mock SlideController
+    slide_controller = SlideController(None)
+    slide_controller.service_item = mocked_media_item
+    slide_controller.is_live = True
+    slide_controller._current_hide_mode = None
+    slide_controller.preview_display = MagicMock()
+    slide_controller.log_debug = MagicMock()
+    slide_controller.selected_row = MagicMock()
+    slide_controller.screens = MagicMock()
+    slide_controller.screens.current = {'primary': ''}
+    slide_controller.displays = [MagicMock()]
+    slide_controller.display.preview.return_value = QtGui.QImage()
+    slide_controller.display_maindisplay = MagicMock()
+    slide_controller.slide_preview = MagicMock()
+    slide_controller.slide_count = 0
+    slide_controller.slide_changed_time = datetime.datetime.now()
+    slide_controller.is_slide_loaded = MagicMock()
+
+    # WHEN: update_preview is called
+    slide_controller.update_preview()
+
+    # THEN: A screen_grab of the main display should have been used to populate the live preview panel
+    assert 1 == slide_controller.display_maindisplay.call_count, 'display_maindisplay() should have been called'
+    assert 0 == slide_controller.preview_display.go_to_slide.call_count, 'go_to_slide should NOT have been called'
+
+
 def test_update_preview_image(settings: Settings):
     """
     Test that the preview screen is updated with the correct preview for image service items

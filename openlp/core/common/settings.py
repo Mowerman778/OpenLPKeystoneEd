@@ -215,6 +215,7 @@ class Settings(QtCore.QSettings):
         'alerts/timeout': 10,
         'alerts/repeat': 1,
         'alerts/scroll': True,
+        'alerts/speed': 5,
         'api/twelve hour': True,
         'api/port': 4316,
         'api/websocket port': 4317,

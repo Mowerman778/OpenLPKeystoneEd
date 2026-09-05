@@ -75,7 +75,8 @@ class AlertsManager(QtCore.QObject, RegistryBase, LogMixin, RegistryProperties):
             'fontColor': self._hex_to_rgb(QtGui.QColor(self.settings.value('alerts/font color'))),
             'timeout': self.settings.value('alerts/timeout'),
             'repeat': self.settings.value('alerts/repeat'),
-            'scroll': self.settings.value('alerts/scroll')
+            'scroll': self.settings.value('alerts/scroll'),
+            'speed': self.settings.value('alerts/speed')
         }
         self.live_controller.display.alert(text, json.dumps(alert_settings))
 

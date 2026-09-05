@@ -63,6 +63,19 @@ class WordProjectBible(BibleImport):
         self.base_path = Path(self.tmp.name, self.file_path.stem)
         return True
 
+    def _find_existing(self, *candidate_paths):
+        """
+        Return the first of the given candidate paths that exists, or the first one if none of them do (so the
+        caller's usual "file is missing" handling still applies).
+
+        Some WordProject Bible exports (e.g. more recent downloads from wordproject.org) use ``.html`` instead
+        of the ``.htm`` extension used by older ones, while otherwise sharing the same directory layout.
+        """
+        for candidate_path in candidate_paths:
+            if candidate_path.exists():
+                return candidate_path
+        return candidate_paths[0]
+
     def process_books(self):
         """
         Extract and create the bible books from the parsed html
@@ -70,7 +83,7 @@ class WordProjectBible(BibleImport):
         :param bible_data: parsed xml
         :return: True if books was parsed, otherwise False
         """
-        idx_file = (self.base_path / 'index.htm')
+        idx_file = self._find_existing(self.base_path / 'index.htm', self.base_path / 'index.html')
         if not idx_file.exists():
             critical_error_message_box(message=translate('BiblesPlugin.WordProjectBible',
                                                          'Incorrect Bible file type, files are missing.'))
@@ -139,7 +152,9 @@ class WordProjectBible(BibleImport):
         """
         Get the verses for a particular book
         """
-        chapter_file_path = self.base_path / '{:02d}'.format(book_number) / '{}.htm'.format(chapter_number)
+        chapter_dir = self.base_path / '{:02d}'.format(book_number)
+        chapter_file_path = self._find_existing(chapter_dir / '{}.htm'.format(chapter_number),
+                                                chapter_dir / '{}.html'.format(chapter_number))
         page = chapter_file_path.read_text(encoding='utf-8', errors='ignore')
         soup = BeautifulSoup(page, 'lxml')
         text_body = soup.find('div', 'textBody')

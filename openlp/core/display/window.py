@@ -210,6 +210,31 @@ class DisplayWindow(QtWidgets.QWidget, RegistryProperties, LogMixin):
         if not self._is_manual_close:
             event.ignore()
 
+    def contextMenuEvent(self, event):
+        """
+        Add a right-click "Minimize" option to the projector display. The display is frameless and always-on-top,
+        so without this the user has no way to get it out of the way of other windows on the same screen.
+        """
+        if not self.is_display:
+            return
+        menu = QtWidgets.QMenu(self)
+        minimize_action = menu.addAction(translate('OpenLP.DisplayWindow', 'Minimize'))
+        minimize_action.setStatusTip(translate(
+            'OpenLP.DisplayWindow',
+            'Temporarily hide the projector display window so windows behind it can be used. Use "Show '
+            'Presentation" in the Live panel to bring it back.'))
+        action = menu.exec(event.globalPos())
+        if action == minimize_action:
+            self.minimize()
+
+    def minimize(self):
+        """
+        Temporarily hide the (always-on-top, frameless) projector display window, so it no longer blocks access
+        to other windows on the same screen. It is brought back the same way the display is normally shown,
+        e.g. via the "Show Presentation" button on the Live toolbar, which calls :meth:`show_display`.
+        """
+        self.setVisible(False)
+
     def init_webengine(self):
         # Need to import this inline to get around a QtWebEngine issue
         from openlp.core.display.webengine import WebEngineView, WebViewSchemes, OpenLPScheme, OpenLPLibraryScheme

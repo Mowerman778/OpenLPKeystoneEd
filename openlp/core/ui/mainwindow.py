@@ -335,6 +335,10 @@ class Ui_MainWindow(object):
             self.formatting_tag_item.setMenuRole(QtWidgets.QAction.MenuRole.NoRole)
         add_actions(self.settings_menu, (self.settings_plugin_list_item, self.settings_language_menu.menuAction(),
                     None, self.formatting_tag_item, self.settings_shortcuts_item, self.settings_configure_item))
+        # The raw {tag} Formatting Tags editor is superseded by the Song Formatting Panel in the verse/slide
+        # editors (font, colour, highlight, etc. applied directly to the selected text), so it's hidden here
+        # rather than exposed as a separate, harder to use, configuration screen.
+        self.formatting_tag_item.setVisible(False)
         add_actions(self.tools_menu, (self.tools_add_tool_item, None))
         add_actions(self.tools_menu, (self.tools_open_data_folder, None))
         add_actions(self.tools_menu, (self.tools_first_time_wizard, None))

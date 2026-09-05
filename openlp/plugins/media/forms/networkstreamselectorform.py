@@ -21,8 +21,9 @@
 
 import logging
 import re
+from urllib.parse import quote_plus
 
-from PyQt5 import QtWidgets
+from PyQt5 import QtCore, QtGui, QtWidgets
 
 from openlp.core.common.i18n import translate
 from openlp.plugins.media.forms import StreamSelectorFormBase, VLCOptionsWidget
@@ -50,7 +51,13 @@ class NetworkStreamSelectorForm(StreamSelectorFormBase):
         self.net_mrl_label.setObjectName('net_mrl_label')
         self.net_mrl_lineedit = QtWidgets.QLineEdit(self)
         self.net_mrl_lineedit.setObjectName('net_mrl_lineedit')
-        self.top_layout.addRow(self.net_mrl_label, self.net_mrl_lineedit)
+        self.net_mrl_layout = QtWidgets.QHBoxLayout()
+        self.net_mrl_layout.setObjectName('net_mrl_layout')
+        self.net_mrl_layout.addWidget(self.net_mrl_lineedit)
+        self.search_online_button = QtWidgets.QPushButton(self)
+        self.search_online_button.setObjectName('search_online_button')
+        self.net_mrl_layout.addWidget(self.search_online_button)
+        self.top_layout.addRow(self.net_mrl_label, self.net_mrl_layout)
         self.main_layout.addWidget(self.top_widget)
 
         # Add groupbox for VLC options
@@ -68,6 +75,7 @@ class NetworkStreamSelectorForm(StreamSelectorFormBase):
         # translate
         self.retranslate_ui()
         # connect
+        self.search_online_button.clicked.connect(self.on_search_online_button_clicked)
         self.net_mrl_lineedit.editingFinished.connect(self.on_updates)
         self.more_options_group.caching.valueChanged.connect(self.on_updates)
         self.button_box.accepted.connect(self.accept)
@@ -78,6 +86,23 @@ class NetworkStreamSelectorForm(StreamSelectorFormBase):
         if not self.theme_stream:
             self.stream_name_label.setText(translate('MediaPlugin.StreamSelector', 'Stream name'))
         self.net_mrl_label.setText(translate('MediaPlugin.StreamSelector', 'Network URL'))
+        self.search_online_button.setText(translate('MediaPlugin.StreamSelector', 'Search Online...'))
+        self.search_online_button.setToolTip(translate(
+            'MediaPlugin.StreamSelector',
+            'Search for a video (including on YouTube) in your web browser, then copy its URL into the '
+            'Network URL field above.'))
+
+    def on_search_online_button_clicked(self):
+        """
+        Open the user's web browser to search for streamable content (e.g. on YouTube), using whatever text is
+        currently in the Network URL field as the search query if it isn't already a URL.
+        """
+        query = self.net_mrl_lineedit.text().strip()
+        if query and not re.match(r'^[a-zA-Z][a-zA-Z0-9+.-]*://', query):
+            search_url = 'https://www.youtube.com/results?search_query=' + quote_plus(query)
+        else:
+            search_url = 'https://www.youtube.com/'
+        QtGui.QDesktopServices.openUrl(QtCore.QUrl(search_url))
 
     def on_updates(self):
         self.update_mrl_options(self.net_mrl_lineedit.text(), '')

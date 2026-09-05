@@ -91,3 +91,62 @@ def test_get_html_tags_with_user_tags(mock_settings):
 
         # THEN: The lists should now be identical.
         assert old_tags_list == FormattingTags.get_html_tags(), 'The lists should be identical.'
+
+
+def test_get_or_create_custom_tag_creates_new_tag(registry, settings):
+    """
+    Test that get_or_create_custom_tag() creates and persists a new custom tag when no matching one exists
+    """
+    # GIVEN: A clean set of formatting tags (just the built-in protected ones)
+    FormattingTags.load_tags()
+
+    # WHEN: A custom tag is requested for a style that doesn't exist yet
+    tag_name = FormattingTags.get_or_create_custom_tag('font-weight:bold;-webkit-text-fill-color:#ff00ff')
+
+    # THEN: A new, non-protected tag should have been added with that exact style
+    matching = [tag for tag in FormattingTags.get_html_tags()
+                if tag['start tag'] == '{{{name}}}'.format(name=tag_name)]
+    assert len(matching) == 1
+    assert matching[0]['protected'] is False
+    assert matching[0]['start html'] == '<span style="font-weight:bold;-webkit-text-fill-color:#ff00ff">'
+    assert matching[0]['end html'] == '</span>'
+
+    # AND: It should survive a reload from settings (i.e. it was actually persisted, not just kept in memory)
+    FormattingTags.load_tags()
+    matching_after_reload = [tag for tag in FormattingTags.get_html_tags()
+                             if tag['start tag'] == '{{{name}}}'.format(name=tag_name)]
+    assert len(matching_after_reload) == 1
+
+
+def test_get_or_create_custom_tag_reuses_matching_tag(registry, settings):
+    """
+    Test that requesting the same style twice reuses the same tag instead of creating a duplicate
+    """
+    # GIVEN: A clean set of formatting tags
+    FormattingTags.load_tags()
+
+    # WHEN: The same style is requested twice
+    first_tag_name = FormattingTags.get_or_create_custom_tag('font-style:italic;-webkit-text-fill-color:#00ff00')
+    second_tag_name = FormattingTags.get_or_create_custom_tag('font-style:italic;-webkit-text-fill-color:#00ff00')
+
+    # THEN: The same tag name should be returned, and only one custom tag should exist for it
+    assert first_tag_name == second_tag_name
+    matching = [tag for tag in FormattingTags.get_html_tags()
+                if tag['start tag'] == '{{{name}}}'.format(name=first_tag_name)]
+    assert len(matching) == 1
+
+
+def test_get_or_create_custom_tag_does_not_collide_with_protected_tags(registry, settings):
+    """
+    Test that the generated tag name can never collide with a protected (built-in) tag's name
+    """
+    # GIVEN: A clean set of formatting tags
+    FormattingTags.load_tags()
+    protected_names = {FormattingTags._tag_name(tag['start tag']) for tag in FormattingTags.get_html_tags()
+                       if tag.get('protected')}
+
+    # WHEN: A new custom tag is created
+    tag_name = FormattingTags.get_or_create_custom_tag('-webkit-text-fill-color:#123456')
+
+    # THEN: Its name must not collide with any protected tag's name
+    assert tag_name not in protected_names

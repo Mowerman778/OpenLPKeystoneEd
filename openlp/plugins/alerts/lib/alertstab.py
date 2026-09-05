@@ -78,6 +78,13 @@ class AlertsTab(SettingsTab):
         self.repeat_spin_box = QtWidgets.QSpinBox(self.scroll_group_box)
         self.repeat_spin_box.setObjectName('repeat_spin_box')
         self.scroll_group_layout.addRow(self.repeat_label, self.repeat_spin_box)
+        self.speed_label = QtWidgets.QLabel(self.scroll_group_box)
+        self.speed_label.setObjectName('speed_label')
+        self.speed_spin_box = QtWidgets.QSpinBox(self.scroll_group_box)
+        self.speed_spin_box.setObjectName('speed_spin_box')
+        self.speed_spin_box.setMinimum(1)
+        self.speed_spin_box.setMaximum(60)
+        self.scroll_group_layout.addRow(self.speed_label, self.speed_spin_box)
         self.left_layout.addWidget(self.scroll_group_box)
         # Other Settings
         self.settings_group_box = QtWidgets.QGroupBox(self.left_column)
@@ -112,6 +119,7 @@ class AlertsTab(SettingsTab):
         self.timeout_spin_box.valueChanged.connect(self.on_timeout_spin_box_changed)
         self.font_size_spin_box.valueChanged.connect(self.on_font_size_spin_box_changed)
         self.repeat_spin_box.valueChanged.connect(self.on_repeat_spin_box_changed)
+        self.speed_spin_box.valueChanged.connect(self.on_speed_spin_box_changed)
         self.scroll_check_box.toggled.connect(self.scroll_check_box_toggled)
 
     def retranslate_ui(self):
@@ -126,6 +134,11 @@ class AlertsTab(SettingsTab):
         self.timeout_label.setText(translate('AlertsPlugin.AlertsTab', 'Alert timeout:'))
         self.timeout_spin_box.setSuffix(' {unit}'.format(unit=UiStrings().Seconds))
         self.repeat_label.setText(translate('AlertsPlugin.AlertsTab', 'Repeat (no. of times):'))
+        self.speed_label.setText(translate('AlertsPlugin.AlertsTab', 'Scrolling speed:'))
+        self.speed_spin_box.setSuffix(' {unit}'.format(unit=UiStrings().Seconds))
+        self.speed_spin_box.setToolTip(translate(
+            'AlertsPlugin.AlertsTab',
+            'How long it takes the alert to scroll across the screen once. Lower values scroll faster.'))
         self.scroll_check_box.setText(translate('AlertsPlugin.AlertsTab', 'Enable Scrolling'))
         self.preview_group_box.setTitle(UiStrings().Preview)
         self.font_preview.setText(UiStrings().OpenLP)
@@ -172,15 +185,21 @@ class AlertsTab(SettingsTab):
         self.repeat = self.repeat_spin_box.value()
         self.changed = True
 
+    def on_speed_spin_box_changed(self):
+        """
+        The scrolling speed spin box has changed
+        """
+        self.speed = self.speed_spin_box.value()
+        self.changed = True
+
     def scroll_check_box_toggled(self):
         """
         The scrolling checkbox has been toggled
         """
-        if self.scroll_check_box.isChecked():
-            self.repeat_spin_box.setEnabled(True)
-        else:
-            self.repeat_spin_box.setEnabled(False)
-        self.scroll = self.scroll_check_box.isChecked()
+        is_scrolling = self.scroll_check_box.isChecked()
+        self.repeat_spin_box.setEnabled(is_scrolling)
+        self.speed_spin_box.setEnabled(is_scrolling)
+        self.scroll = is_scrolling
         self.changed = True
 
     def load(self):
@@ -195,12 +214,15 @@ class AlertsTab(SettingsTab):
         self.location = self.settings.value('alerts/location')
         self.repeat = self.settings.value('alerts/repeat')
         self.scroll = self.settings.value('alerts/scroll')
+        self.speed = self.settings.value('alerts/speed')
         self.font_size_spin_box.setValue(self.font_size)
         self.timeout_spin_box.setValue(self.timeout)
         self.font_color_button.color = self.font_color
         self.background_color_button.color = self.background_color
         self.repeat_spin_box.setValue(self.repeat)
         self.repeat_spin_box.setEnabled(self.scroll)
+        self.speed_spin_box.setValue(self.speed)
+        self.speed_spin_box.setEnabled(self.scroll)
         self.vertical_combo_box.setCurrentIndex(self.location)
         self.scroll_check_box.setChecked(self.scroll)
         font = QtGui.QFont()
@@ -226,6 +248,7 @@ class AlertsTab(SettingsTab):
         self.settings.setValue('alerts/location', self.location)
         self.settings.setValue('alerts/repeat', self.repeat)
         self.settings.setValue('alerts/scroll', self.scroll_check_box.isChecked())
+        self.settings.setValue('alerts/speed', self.speed)
         if self.changed:
             self.settings_form.register_post_process('update_display_css')
         self.changed = False

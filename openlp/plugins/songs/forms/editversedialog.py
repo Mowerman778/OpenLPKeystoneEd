@@ -25,6 +25,7 @@ from openlp.core.common.i18n import UiStrings
 from openlp.core.lib.ui import create_button_box
 from openlp.core.ui.icons import UiIcons
 from openlp.core.widgets.edits import SpellTextEdit
+from openlp.core.widgets.songformattingpanel import SongFormattingPanel
 from openlp.plugins.songs.lib import VerseType
 
 
@@ -32,13 +33,18 @@ class Ui_EditVerseDialog(object):
     def setup_ui(self, edit_verse_dialog):
         edit_verse_dialog.setObjectName('edit_verse_dialog')
         edit_verse_dialog.setWindowIcon(UiIcons().main_icon)
-        edit_verse_dialog.resize(400, 400)
+        edit_verse_dialog.resize(650, 450)
         edit_verse_dialog.setModal(True)
         self.dialog_layout = QtWidgets.QVBoxLayout(edit_verse_dialog)
         self.dialog_layout.setObjectName('dialog_layout')
+        self.editor_layout = QtWidgets.QHBoxLayout()
+        self.editor_layout.setObjectName('editor_layout')
         self.verse_text_edit = SpellTextEdit(edit_verse_dialog)
         self.verse_text_edit.setObjectName('verse_text_edit')
-        self.dialog_layout.addWidget(self.verse_text_edit)
+        self.editor_layout.addWidget(self.verse_text_edit)
+        self.formatting_panel = SongFormattingPanel(edit_verse_dialog, self.verse_text_edit)
+        self.editor_layout.addWidget(self.formatting_panel)
+        self.dialog_layout.addLayout(self.editor_layout)
         self.verse_type_layout = QtWidgets.QHBoxLayout()
         self.verse_type_layout.setObjectName('verse_type_layout')
         self.forced_split_button = QtWidgets.QPushButton(edit_verse_dialog)

@@ -282,3 +282,51 @@ class FormattingTags(object):
         Removes an individual html_expands tag.
         """
         FormattingTags.html_expands.pop(tag_id)
+
+    @staticmethod
+    def _tag_name(start_tag):
+        """
+        Strip the surrounding braces off a start/end tag, e.g. ``{r}`` -> ``r``.
+        """
+        return start_tag.strip('{}').lstrip('/')
+
+    @staticmethod
+    def get_or_create_custom_tag(style, desc=None):
+        """
+        Find an existing custom (non-protected) formatting tag whose start html matches the given inline CSS
+        exactly, or create and persist a new one. This lets UI such as the Song Formatting Panel apply
+        arbitrary font/colour combinations to text without the user having to manually pre-define a Formatting
+        Tag for every combination first - it's rendered through the exact same tag mechanism, just generated
+        on demand.
+
+        :param style: The CSS declarations to put in the tag's ``style`` attribute, e.g.
+            ``'font-weight:bold;-webkit-text-fill-color:#ff0000'``.
+        :param desc: An optional human-readable description for the tag.
+        :return: The plain tag name (without surrounding braces), e.g. ``sfp3``.
+        """
+        start_html = '<span style="{style}">'.format(style=style)
+        end_html = '</span>'
+        all_tags = FormattingTags.get_html_tags()
+        for tag in all_tags:
+            if not tag.get('protected') and tag.get('start html') == start_html and tag.get('end html') == end_html:
+                return FormattingTags._tag_name(tag['start tag'])
+        existing_names = {FormattingTags._tag_name(tag['start tag']) for tag in all_tags}
+        index = 1
+        while 'sfp{index}'.format(index=index) in existing_names:
+            index += 1
+        tag_name = 'sfp{index}'.format(index=index)
+        new_tag = {
+            'desc': desc or translate('OpenLP.FormattingTags', 'Custom style {index}').format(index=index),
+            'start tag': '{{{name}}}'.format(name=tag_name),
+            'start html': start_html,
+            'end tag': '{{/{name}}}'.format(name=tag_name),
+            'end html': end_html,
+            'protected': False,
+            'temporary': False,
+            'hidden': False
+        }
+        custom_tags = [tag for tag in all_tags if not tag.get('protected')]
+        custom_tags.append(new_tag)
+        FormattingTags.save_html_tags(custom_tags)
+        FormattingTags.load_tags()
+        return tag_name
