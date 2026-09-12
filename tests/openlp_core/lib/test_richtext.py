@@ -177,3 +177,24 @@ def test_char_format_from_html_ignores_what_it_cannot_read():
     # THEN: Nothing should have been set, and nothing should have blown up
     assert char_format.fontWeight() == QtGui.QFont.Normal
     assert char_format.fontItalic() is False
+
+
+def test_rich_text_edit_round_trips_through_the_widget(tags, settings):
+    """
+    Test that the editor widget itself loads and saves tagged text without changing it.
+
+    This is the end-to-end version of the round-trip guarantee: it goes through the real widget the song and
+    custom slide editors now use, not just the converter functions.
+    """
+    # GIVEN: A rich text edit and a verse with formatting in it
+    from openlp.core.widgets.edits import SpellRichTextEdit
+    text = '---[Verse:1]---\n{r}Amazing grace{/r}, how {st}sweet{/st} the sound'
+    edit = SpellRichTextEdit()
+
+    # WHEN: The verse is loaded and read straight back
+    edit.set_tagged_text(text)
+
+    # THEN: The markup should be hidden from the user but preserved exactly on the way out
+    assert '{r}' not in edit.toPlainText()
+    assert edit.toPlainText() == '---[Verse:1]---\nAmazing grace, how sweet the sound'
+    assert edit.tagged_text() == text

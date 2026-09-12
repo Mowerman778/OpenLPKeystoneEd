@@ -32,6 +32,7 @@ from openlp.core.common.i18n import UiStrings, translate
 from openlp.core.common.path import path_to_str, str_to_path
 from openlp.core.common.registry import Registry
 from openlp.core.lib.formattingtags import FormattingTags
+from openlp.core.lib.richtext import document_to_tags, tags_to_document
 from openlp.core.lib.ui import create_action, create_widget_action
 from openlp.core.ui.icons import UiIcons
 from openlp.core.widgets.dialogs import FileDialog
@@ -359,18 +360,22 @@ class PathEdit(QtWidgets.QWidget):
             self.pathChanged.emit(path)
 
 
-class SpellTextEdit(QtWidgets.QPlainTextEdit):
+class SpellCheckMixin(object):
     """
-    Spell checking widget based on QPlanTextEdit.
+    In-line spell checking, a spelling/language context menu, and optional formatting tag insertion.
+
+    Mixed in to a QPlainTextEdit or a QTextEdit - everything here only needs ``document()``, ``textCursor()``
+    and ``createStandardContextMenu()``, which both of them provide.
 
     Based on code from http://john.nachtimwald.com/2009/08/22/qplaintextedit-with-in-line-spell-check
     """
-    def __init__(self, parent=None, formatting_tags_allowed=True):
+    def _init_spelling(self, formatting_tags_allowed=True):
         """
-        Constructor.
+        Attach the spelling dictionary and highlighter.
+
+        :param formatting_tags_allowed: Whether to offer the Formatting Tags submenu on right click.
         """
         global ENCHANT_AVAILABLE
-        super(SpellTextEdit, self).__init__(parent)
         self.formatting_tags_allowed = formatting_tags_allowed
         # Default dictionary based on the current locale.
         if ENCHANT_AVAILABLE:
@@ -390,7 +395,7 @@ class SpellTextEdit(QtWidgets.QPlainTextEdit):
             # Rewrite the mouse event to a left button event so the cursor is moved to the location of the pointer.
             event = QtGui.QMouseEvent(QtCore.QEvent.MouseButtonPress,
                                       event.pos(), QtCore.Qt.LeftButton, QtCore.Qt.LeftButton, QtCore.Qt.NoModifier)
-        QtWidgets.QPlainTextEdit.mousePressEvent(self, event)
+        super().mousePressEvent(event)
 
     def contextMenuEvent(self, event):
         """
@@ -484,6 +489,51 @@ class SpellTextEdit(QtWidgets.QPlainTextEdit):
         :rtype: None
         """
         self.insertPlainText(CONTROL_CHARS.sub('', source.text()))
+
+
+class SpellTextEdit(SpellCheckMixin, QtWidgets.QPlainTextEdit):
+    """
+    Plain text spell checking widget.
+    """
+    def __init__(self, parent=None, formatting_tags_allowed=True):
+        """
+        Constructor.
+        """
+        super().__init__(parent)
+        self._init_spelling(formatting_tags_allowed)
+
+
+class SpellRichTextEdit(SpellCheckMixin, QtWidgets.QTextEdit):
+    """
+    Spell checking widget that shows formatting instead of formatting-tag markup.
+
+    The text is still stored as markup - :meth:`set_tagged_text` and :meth:`tagged_text` convert at the edges
+    - so nothing downstream of the editor has to change. See :mod:`openlp.core.lib.richtext`.
+    """
+    def __init__(self, parent=None, formatting_tags_allowed=False):
+        """
+        Constructor.
+        """
+        super().__init__(parent)
+        # Pasting HTML in from elsewhere would bring formatting we have no tag for, so paste as plain text.
+        self.setAcceptRichText(False)
+        self._init_spelling(formatting_tags_allowed)
+
+    def set_tagged_text(self, text):
+        """
+        Show text that contains formatting tags, rendering the tags as actual formatting.
+
+        :param text: The stored text, with formatting tags in it.
+        """
+        tags_to_document(text, self.document())
+
+    def tagged_text(self):
+        """
+        Return the text as it should be stored, with formatting tags restored.
+
+        :return: The text, with formatting tags in it.
+        """
+        return document_to_tags(self.document())
 
 
 class Highlighter(QtGui.QSyntaxHighlighter):

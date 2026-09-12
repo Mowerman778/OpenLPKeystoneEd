@@ -54,14 +54,14 @@ class EditCustomSlideForm(QtWidgets.QDialog, Ui_CustomSlideEditDialog):
         """
         self.slide_text_edit.clear()
         if text:
-            self.slide_text_edit.setPlainText(text)
+            self.slide_text_edit.set_tagged_text(text)
         self.slide_text_edit.setFocus()
 
     def get_text(self):
         """
         Returns a list with all slides.
         """
-        return self.slide_text_edit.toPlainText().split('\n[===]\n')
+        return self.slide_text_edit.tagged_text().split('\n[===]\n')
 
     def on_insert_button_clicked(self):
         """
@@ -83,7 +83,7 @@ class EditCustomSlideForm(QtWidgets.QDialog, Ui_CustomSlideEditDialog):
 
         :param text: The text to be inserted
         """
-        full_text = self.slide_text_edit.toPlainText()
+        full_text = self.slide_text_edit.tagged_text()
         position = self.slide_text_edit.textCursor().position()
         if position and full_text[position - 1] != '\n':
             text = '\n' + text

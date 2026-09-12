@@ -32,6 +32,7 @@ from PyQt5 import QtCore, QtGui, QtWidgets
 
 from openlp.core.common.i18n import translate
 from openlp.core.lib.formattingtags import FormattingTags
+from openlp.core.lib.richtext import TAG_NAME_PROPERTY, char_format_from_html
 from openlp.core.ui.icons import UiIcons
 from openlp.core.widgets.buttons import ColorButton
 
@@ -202,13 +203,24 @@ class SongFormattingPanel(QtWidgets.QWidget):
 
     def apply_to_selection(self):
         """
-        Wrap the text edit's current selection with a Formatting Tag matching the panel's current settings.
+        Apply the panel's current settings to the text edit's selection.
+
+        On a rich text edit the formatting is applied to the text itself and the run remembers which tag it
+        came from, so it still saves as ordinary formatting-tag markup. On a plain text edit there is nothing
+        to show formatting with, so the markup is inserted instead.
         """
         cursor = self.text_edit.textCursor()
         if not cursor.hasSelection():
             return
         style = self.build_style()
         tag_name = FormattingTags.get_or_create_custom_tag(style)
+        if hasattr(self.text_edit, 'set_tagged_text'):
+            char_format = char_format_from_html('<span style="{style}">'.format(style=style))
+            # The panel describes the whole appearance of the run, so this tag replaces any it already had.
+            char_format.setProperty(TAG_NAME_PROPERTY, tag_name)
+            cursor.mergeCharFormat(char_format)
+            self.text_edit.setFocus()
+            return
         # QTextCursor uses U+2029 (paragraph separator) for line breaks within a selection, rather than '\n'.
         selected_text = cursor.selectedText().replace(' ', '\n')
         cursor.insertText('{{{tag}}}{text}{{/{tag}}}'.format(tag=tag_name, text=selected_text))

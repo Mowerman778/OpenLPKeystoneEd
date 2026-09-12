@@ -360,7 +360,7 @@ def test_set_verse_single(settings: Settings, edit_verse_form: EditVerseForm):
         mocked_verse_number_box.setValue.assert_called_once_with(1)
         mocked_insert_button.setVisible.assert_called_once_with(False)
         mocked_transpose_widget.setVisible.assert_called_once_with(False)
-        mocked_verse_text_edit.setPlainText.assert_called_once_with('Amazing grace, how sweet the sound')
+        mocked_verse_text_edit.set_tagged_text.assert_called_once_with('Amazing grace, how sweet the sound')
         mocked_verse_text_edit.setFocus.assert_called_once_with()
         mocked_verse_text_edit.moveCursor.assert_called_once_with(QtGui.QTextCursor.MoveOperation.End)
 
@@ -385,7 +385,7 @@ def test_set_verse_multiple(settings: Settings, edit_verse_form: EditVerseForm):
         mocked_verse_number_box.setValue.assert_called_once_with(1)
         mocked_insert_button.setVisible.assert_called_once_with(True)
         mocked_transpose_widget.setVisible.assert_called_once_with(True)
-        mocked_verse_text_edit.setPlainText.assert_called_once_with('---[Verse:1]---\n')
+        mocked_verse_text_edit.set_tagged_text.assert_called_once_with('---[Verse:1]---\n')
         mocked_verse_text_edit.setFocus.assert_called_once_with()
         mocked_verse_text_edit.moveCursor.assert_called_once_with(QtGui.QTextCursor.MoveOperation.End)
 
@@ -410,7 +410,7 @@ def test_set_verse_multiple_chords_disabled(settings: Settings, edit_verse_form:
         mocked_verse_number_box.setValue.assert_called_once_with(1)
         mocked_insert_button.setVisible.assert_called_once_with(True)
         mocked_transpose_widget.setVisible.assert_not_called()
-        mocked_verse_text_edit.setPlainText.assert_called_once_with('---[Verse:1]---\n')
+        mocked_verse_text_edit.set_tagged_text.assert_called_once_with('---[Verse:1]---\n')
         mocked_verse_text_edit.setFocus.assert_called_once_with()
         mocked_verse_text_edit.moveCursor.assert_called_once_with(QtGui.QTextCursor.MoveOperation.End)
 

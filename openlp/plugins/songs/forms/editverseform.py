@@ -220,7 +220,7 @@ class EditVerseForm(QtWidgets.QDialog, Ui_EditVerseDialog):
             self.insert_button.setVisible(True)
             if Registry().get('settings').value('songs/enable chords'):
                 self.transpose_widget.setVisible(True)
-        self.verse_text_edit.setPlainText(text)
+        self.verse_text_edit.set_tagged_text(text)
         self.verse_text_edit.setFocus()
         self.verse_text_edit.moveCursor(QtGui.QTextCursor.MoveOperation.End)
 
@@ -230,7 +230,7 @@ class EditVerseForm(QtWidgets.QDialog, Ui_EditVerseDialog):
 
         :return: The text
         """
-        return self.verse_text_edit.toPlainText(), VerseType.tags[self.verse_type_combo_box.currentIndex()], \
+        return self.verse_text_edit.tagged_text(), VerseType.tags[self.verse_type_combo_box.currentIndex()], \
             str(self.verse_number_box.value())
 
     def get_all_verses(self):
@@ -239,7 +239,7 @@ class EditVerseForm(QtWidgets.QDialog, Ui_EditVerseDialog):
 
         :return: The text
         """
-        text = self.verse_text_edit.toPlainText()
+        text = self.verse_text_edit.tagged_text()
         if not text.startswith('---['):
             text = '---[{tag}:1]---\n{text}'.format(tag=VerseType.translated_names[VerseType.Verse], text=text)
         return text

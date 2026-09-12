@@ -24,7 +24,7 @@ from PyQt5 import QtWidgets
 from openlp.core.common.i18n import UiStrings, translate
 from openlp.core.lib.ui import create_button, create_button_box
 from openlp.core.ui.icons import UiIcons
-from openlp.core.widgets.edits import SpellTextEdit
+from openlp.core.widgets.edits import SpellRichTextEdit
 from openlp.core.widgets.songformattingpanel import SongFormattingPanel
 
 
@@ -36,7 +36,7 @@ class Ui_CustomSlideEditDialog(object):
         self.dialog_layout = QtWidgets.QVBoxLayout(custom_slide_edit_dialog)
         self.editor_layout = QtWidgets.QHBoxLayout()
         self.editor_layout.setObjectName('editor_layout')
-        self.slide_text_edit = SpellTextEdit(self)
+        self.slide_text_edit = SpellRichTextEdit(self)
         self.slide_text_edit.setObjectName('slide_text_edit')
         self.editor_layout.addWidget(self.slide_text_edit)
         self.formatting_panel = SongFormattingPanel(self, self.slide_text_edit)
