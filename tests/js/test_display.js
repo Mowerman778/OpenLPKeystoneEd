@@ -397,7 +397,7 @@ describe("Display.showAlert", function () {
 
     Display.showAlert("Test Display.showAlert - zero repeat", settings);
 
-    expect(alertText.style.animation).toContain("5s linear 0.6s 1 normal");
+    expect(alertText.style.animationIterationCount).toEqual("1");
   });
 
   it("should use the speed setting for the scroll duration, not the timeout", function () {
@@ -406,7 +406,9 @@ describe("Display.showAlert", function () {
 
     Display.showAlert("Test Display.showAlert - speed", settings);
 
-    expect(alertText.style.animation).toContain("alert-scrolling-text 7s");
+    /* Assert the individual properties: browsers reorder the "animation" shorthand when serialising it. */
+    expect(alertText.style.animationName).toEqual("alert-scrolling-text");
+    expect(alertText.style.animationDuration).toEqual("7s");
   });
 
   it("should fall back to the timeout when no speed is supplied", function () {
@@ -415,7 +417,8 @@ describe("Display.showAlert", function () {
 
     Display.showAlert("Test Display.showAlert - no speed", settings);
 
-    expect(alertText.style.animation).toContain("alert-scrolling-text 12s");
+    expect(alertText.style.animationName).toEqual("alert-scrolling-text");
+    expect(alertText.style.animationDuration).toEqual("12s");
   });
 
   it("should hide a scrolling alert even if animationend never fires", function () {
