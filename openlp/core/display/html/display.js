@@ -127,6 +127,18 @@ var AlertDelay = {
 };
 
 /**
+ * The delay before the alert scrolling animation starts, in seconds. Must match the delay used in the
+ * animation shorthand built in showAlert().
+ */
+var ALERT_ANIMATION_DELAY_SECONDS = 0.6;
+
+/**
+ * How long after the scroll animation should have finished before the fallback timer gives up and hides the
+ * alert anyway, in milliseconds.
+ */
+var ALERT_FALLBACK_MARGIN_MS = 1000;
+
+/**
  * Return an array of elements based on the selector query
  * @param {string} selector - The selector to find elements
  * @returns {array} An array of matching elements
@@ -301,6 +313,7 @@ var Display = {
   _slides: {},
   _alertSettings: {},
   _alertState: AlertState.NotDisplaying,
+  _alertFallbackTimer: null,
   _transitionState: TransitionState.NoTransition,
   _animationState: AnimationState.NoAnimation,
   _doTransitions: false,
@@ -550,10 +563,25 @@ var Display = {
       /* "speed" is the number of seconds it takes to scroll across the screen once - it is independent of
          "timeout", which is only used to auto-hide non-scrolling alerts. Older settings payloads (or a stale
          cached page) may not include it, so fall back to the previous behaviour of reusing "timeout". */
-      var scrollSeconds = (typeof settings.speed !== "undefined") ? settings.speed : settings.timeout;
+      var scrollSeconds = Number(settings.speed) > 0 ? Number(settings.speed) : Number(settings.timeout);
+      /* An iteration count of 0 means the animation never runs, so "animationend" never fires and the alert
+         would stay on the screen forever. Treat anything below 1 as a single pass. */
+      var repeatCount = Number(settings.repeat) >= 1 ? Math.floor(Number(settings.repeat)) : 1;
       var animationSettings = "alert-scrolling-text " + scrollSeconds +
-                              "s linear 0.6s " + settings.repeat + " normal";
+                              "s linear " + ALERT_ANIMATION_DELAY_SECONDS + "s " + repeatCount + " normal";
       alertText.style.animation = animationSettings;
+      /* Belt and braces: the scrolling alert is normally dismissed by "animationend", but if that never
+         arrives - a dropped event, an animation that was cancelled, an unusable duration - the alert would
+         be stuck on the projector with no way to clear it. Hide it once the scroll is definitely over. */
+      var scrollMilliseconds = (scrollSeconds * repeatCount + ALERT_ANIMATION_DELAY_SECONDS) *
+                               AlertDelay.OneSecond;
+      Display._alertFallbackTimer = setTimeout(function () {
+        if (Display._alertState === AlertState.Displaying) {
+          Display._animationState = AnimationState.NoAnimation;
+          Display.hideAlert();
+          Display.showNextAlert();
+        }
+      }, scrollMilliseconds + ALERT_FALLBACK_MARGIN_MS);
     }
     else {
       Display._animationState = AnimationState.NonScrollingText;
@@ -574,6 +602,10 @@ var Display = {
     alertText.classList.replace("show", "hide");
     alertBackground.classList.replace("show", "hide");
     alertText.style.animation = "";
+    if (Display._alertFallbackTimer !== null) {
+      clearTimeout(Display._alertFallbackTimer);
+      Display._alertFallbackTimer = null;
+    }
     Display._alertState = AlertState.NotDisplaying;
   },
   /**

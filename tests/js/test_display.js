@@ -389,6 +389,50 @@ describe("Display.showAlert", function () {
     };
   });
 
+  it("should never set an animation iteration count of 0", function () {
+    /* An iteration count of 0 means the animation never runs, so "animationend" never fires and the alert
+       would be stuck on the display forever. */
+    settings["repeat"] = 0;
+    settings["speed"] = 5;
+
+    Display.showAlert("Test Display.showAlert - zero repeat", settings);
+
+    expect(alertText.style.animation).toContain("5s linear 0.6s 1 normal");
+  });
+
+  it("should use the speed setting for the scroll duration, not the timeout", function () {
+    settings["timeout"] = 30;
+    settings["speed"] = 7;
+
+    Display.showAlert("Test Display.showAlert - speed", settings);
+
+    expect(alertText.style.animation).toContain("alert-scrolling-text 7s");
+  });
+
+  it("should fall back to the timeout when no speed is supplied", function () {
+    settings["timeout"] = 12;
+    delete settings["speed"];
+
+    Display.showAlert("Test Display.showAlert - no speed", settings);
+
+    expect(alertText.style.animation).toContain("alert-scrolling-text 12s");
+  });
+
+  it("should hide a scrolling alert even if animationend never fires", function () {
+    jasmine.clock().install();
+    settings["speed"] = 2;
+    settings["repeat"] = 3;
+
+    Display.showAlert("Test Display.showAlert - stuck alert", settings);
+    expect(Display._alertState).toEqual(AlertState.Displaying);
+
+    /* 2s x 3 passes + 0.6s delay + the 1s safety margin, and nothing has dispatched animationend */
+    jasmine.clock().tick((2 * 3 + 0.6) * 1000 + 1000 + 1);
+
+    expect(Display._alertState).toEqual(AlertState.NotDisplaying);
+    jasmine.clock().uninstall();
+  });
+
   it("should create a stylesheet for the settings", function () {
     spyOn(window, "_createStyle");
     Display.showAlert("Test Display.showAlert - stylesheet", settings);

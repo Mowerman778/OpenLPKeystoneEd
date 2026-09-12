@@ -199,6 +199,10 @@ class DisplayWindow(QtWidgets.QWidget, RegistryProperties, LogMixin):
             Registry().register_function('live_display_show', self.show_display)
             self.update_from_screen(screen)
             self.is_display = True
+            # The webview swallows context menu events (see on_context_menu_requested), so ask it to emit
+            # customContextMenuRequested instead of handling the right-click itself.
+            self.webview.setContextMenuPolicy(QtCore.Qt.CustomContextMenu)
+            self.webview.customContextMenuRequested.connect(self.on_context_menu_requested)
             # Only make visible on single monitor setup if setting enabled.
             if not start_hidden and (len(ScreenList()) > 1 or self.settings.value('core/display on monitor')):
                 self.show()
@@ -212,18 +216,42 @@ class DisplayWindow(QtWidgets.QWidget, RegistryProperties, LogMixin):
 
     def contextMenuEvent(self, event):
         """
-        Add a right-click "Minimize" option to the projector display. The display is frameless and always-on-top,
-        so without this the user has no way to get it out of the way of other windows on the same screen.
+        Handle a right-click on any part of the window not covered by the webview. The webview covers the whole
+        window in practice, so :meth:`on_context_menu_requested` is what normally fires - see the note there.
         """
         if not self.is_display:
             return
+        self.show_display_context_menu(event.globalPos())
+
+    def on_context_menu_requested(self, position):
+        """
+        Show the display context menu when the webview is right-clicked.
+
+        The webview fills the whole window, and :class:`WebEngineView` sets ``Qt.PreventContextMenu`` so the
+        Chromium menu never appears on the projected output. That policy also stops the event propagating to
+        this window, so ``contextMenuEvent`` above can never fire over the webview. For the display window we
+        therefore switch it to ``Qt.CustomContextMenu``, which still suppresses the Chromium menu but emits
+        ``customContextMenuRequested`` instead.
+
+        :param position: The click position, in webview coordinates.
+        """
+        self.show_display_context_menu(self.webview.mapToGlobal(position))
+
+    def show_display_context_menu(self, global_position):
+        """
+        Build and show the right-click "Minimize" menu for the projector display. The display is frameless and
+        always-on-top, so without this the user has no way to get it out of the way of other windows on the
+        same screen.
+
+        :param global_position: Where to pop the menu up, in global screen coordinates.
+        """
         menu = QtWidgets.QMenu(self)
         minimize_action = menu.addAction(translate('OpenLP.DisplayWindow', 'Minimize'))
         minimize_action.setStatusTip(translate(
             'OpenLP.DisplayWindow',
             'Temporarily hide the projector display window so windows behind it can be used. Use "Show '
             'Presentation" in the Live panel to bring it back.'))
-        action = menu.exec(event.globalPos())
+        action = menu.exec(global_position)
         if action == minimize_action:
             self.minimize()
 

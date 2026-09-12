@@ -77,6 +77,9 @@ class AlertsTab(SettingsTab):
         self.repeat_label.setObjectName('repeat_label')
         self.repeat_spin_box = QtWidgets.QSpinBox(self.scroll_group_box)
         self.repeat_spin_box.setObjectName('repeat_spin_box')
+        # A repeat of 0 means the scrolling animation never runs, so it never signals that it finished and the
+        # alert stays on the display until OpenLP is restarted. One pass is the sensible minimum.
+        self.repeat_spin_box.setMinimum(1)
         self.scroll_group_layout.addRow(self.repeat_label, self.repeat_spin_box)
         self.speed_label = QtWidgets.QLabel(self.scroll_group_box)
         self.speed_label.setObjectName('speed_label')
@@ -94,6 +97,7 @@ class AlertsTab(SettingsTab):
         self.timeout_label = QtWidgets.QLabel(self.settings_group_box)
         self.timeout_label.setObjectName('timeout_label')
         self.timeout_spin_box = QtWidgets.QSpinBox(self.settings_group_box)
+        self.timeout_spin_box.setMinimum(1)
         self.timeout_spin_box.setMaximum(180)
         self.timeout_spin_box.setObjectName('timeout_spin_box')
         self.settings_layout.addRow(self.timeout_label, self.timeout_spin_box)

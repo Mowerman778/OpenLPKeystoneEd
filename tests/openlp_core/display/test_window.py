@@ -1048,3 +1048,64 @@ def test_context_menu_ignored_for_non_display_windows(display_window_env, mock_s
 
     # THEN: No menu should have been constructed
     mocked_menu_class.assert_not_called()
+
+
+def test_display_webview_opts_into_a_custom_context_menu(display_window_env, mock_settings):
+    """
+    Test that the projector display asks its webview for a custom context menu.
+
+    This is the regression guard for the "Minimize" menu never appearing: the webview covers the whole
+    window and sets Qt.PreventContextMenu, which stops the right-click ever reaching DisplayWindow, so
+    calling contextMenuEvent() directly in a test is not enough to prove the feature works.
+    """
+    # GIVEN: The settings a real projector display needs
+    settings = {
+        'advanced/x11 bypass wm': False,
+        'core/display on monitor': True
+    }
+    mock_settings.value.side_effect = lambda key: settings[key]
+    screen = Screen(1, QtCore.QRect(0, 0, 800, 600), is_display=True)
+
+    # WHEN: A DisplayWindow is created for that screen
+    display_window = DisplayWindow(screen=screen, start_hidden=True)
+
+    # THEN: The webview should emit customContextMenuRequested rather than swallowing the right-click
+    display_window.webview.setContextMenuPolicy.assert_called_once_with(QtCore.Qt.CustomContextMenu)
+    display_window.webview.customContextMenuRequested.connect.assert_called_once_with(
+        display_window.on_context_menu_requested)
+
+
+def test_non_display_webview_keeps_the_default_context_menu_policy(display_window_env, mock_settings):
+    """
+    Test that preview/other DisplayWindows do not get the custom context menu policy
+    """
+    # GIVEN/WHEN: A DisplayWindow that is not a projector display
+    display_window = DisplayWindow()
+
+    # THEN: Its webview should be left alone, so the Chromium menu stays suppressed as before
+    display_window.webview.setContextMenuPolicy.assert_not_called()
+
+
+def test_on_context_menu_requested_shows_the_menu_at_the_click(display_window_env, mock_settings):
+    """
+    Test that the webview's customContextMenuRequested signal pops the menu up at the click position
+    """
+    # GIVEN: A projector DisplayWindow and a click position in webview coordinates
+    display_window = DisplayWindow()
+    display_window.is_display = True
+    display_window.setVisible(True)
+    position = QtCore.QPoint(10, 20)
+    global_position = display_window.webview.mapToGlobal.return_value
+    mocked_menu = MagicMock()
+    mocked_action = MagicMock()
+    mocked_menu.addAction.return_value = mocked_action
+    mocked_menu.exec.return_value = mocked_action
+
+    # WHEN: The webview asks for a context menu
+    with patch('openlp.core.display.window.QtWidgets.QMenu', return_value=mocked_menu):
+        display_window.on_context_menu_requested(position)
+
+    # THEN: The menu is shown at the click, in global coordinates, and Minimize still works
+    display_window.webview.mapToGlobal.assert_called_once_with(position)
+    mocked_menu.exec.assert_called_once_with(global_position)
+    assert display_window.isHidden() is True
