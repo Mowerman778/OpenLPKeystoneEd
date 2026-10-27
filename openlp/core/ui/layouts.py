@@ -98,6 +98,8 @@ class LayoutManager(QtCore.QObject, RegistryProperties):
         self.last_monitor_count = None
         self.setup_ui()
         Registry().register_function('config_screen_changed', self.on_screens_changed)
+        for dock in (main_window.preview_dock, main_window.live_dock):
+            dock.topLevelChanged.connect(lambda floating, moved_dock=dock: self.on_display_panel_moved(moved_dock))
 
     # ---- User interface ----
 
@@ -363,9 +365,31 @@ class LayoutManager(QtCore.QObject, RegistryProperties):
         panel moves. Hiding and showing them again makes them redraw in the right place.
         """
         for dock in (self.window.preview_dock, self.window.live_dock):
-            if dock.isVisible():
-                dock.hide()
-                dock.show()
+            self._redraw_panel(dock)
+
+    def on_display_panel_moved(self, dock):
+        """
+        Preview or Live was dragged out into its own window, or docked back: once the drag is finished, redraw it
+        (otherwise it shows up blank)
+        """
+        QtCore.QTimer.singleShot(100, lambda: self._redraw_after_drag(dock))
+
+    def _redraw_after_drag(self, dock):
+        if QtWidgets.QApplication.mouseButtons() != QtCore.Qt.NoButton:
+            # Still dragging
+            QtCore.QTimer.singleShot(100, lambda: self._redraw_after_drag(dock))
+            return
+        self._redraw_panel(dock)
+
+    @staticmethod
+    def _redraw_panel(dock):
+        if not dock.isVisible():
+            return
+        geometry = dock.geometry() if dock.isFloating() else None
+        dock.hide()
+        dock.show()
+        if geometry:
+            dock.setGeometry(geometry)
 
     def _size_built_in_panels(self, two_monitors):
         """

@@ -459,3 +459,39 @@ def test_setup_mode_slide_list_choice(manager, window):
 
     assert window.live_controller.slide_list_position == 'right'
     assert manager.layout_changed()
+
+
+def test_floating_display_panel_redrawn_after_drag(manager, window, qapp):
+    """
+    Test Preview/Live are redrawn (hidden and shown again) once dragged out into their own window, but only after
+    the mouse button is released, and keep their place
+    """
+    window.show()
+    window.preview_dock.setFloating(True)
+    window.preview_dock.setGeometry(300, 200, 400, 600)
+    with patch.object(window.preview_dock, 'hide', wraps=window.preview_dock.hide) as mocked_hide:
+        # WHEN: The mouse button is still held
+        with patch('openlp.core.ui.layouts.QtWidgets.QApplication.mouseButtons', return_value=QtCore.Qt.LeftButton), \
+                patch('openlp.core.ui.layouts.QtCore.QTimer.singleShot') as mocked_single_shot:
+            manager._redraw_after_drag(window.preview_dock)
+        # THEN: It waits
+        mocked_hide.assert_not_called()
+        mocked_single_shot.assert_called_once()
+
+        # WHEN: The button is released
+        with patch('openlp.core.ui.layouts.QtWidgets.QApplication.mouseButtons', return_value=QtCore.Qt.NoButton):
+            manager._redraw_after_drag(window.preview_dock)
+
+    # THEN: It was redrawn in the same place
+    mocked_hide.assert_called_once()
+    assert window.preview_dock.isVisible()
+    assert window.preview_dock.geometry() == QtCore.QRect(300, 200, 400, 600)
+
+
+def test_floating_display_panel_hooked_up(manager, window):
+    """
+    Test dragging Preview or Live out (or back in) asks for a redraw
+    """
+    with patch.object(manager, 'on_display_panel_moved') as mocked_moved:
+        window.live_dock.topLevelChanged.emit(True)
+    mocked_moved.assert_called_once_with(window.live_dock)

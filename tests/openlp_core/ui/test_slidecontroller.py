@@ -1973,3 +1973,6 @@ def test_set_slide_list_position(position, orientation, first_widget, settings):
     assert slide_controller.splitter.orientation() == orientation
     assert slide_controller.splitter.widget(0) is getattr(slide_controller, first_widget)
     assert slide_controller.slide_list_position == ('right' if position == 'right' else 'top')
+    # Beside the picture the list may grow to full height (or it caps the row); above it, it keeps its natural size
+    expected_policy = QtWidgets.QSizePolicy.Expanding if position == 'right' else QtWidgets.QSizePolicy.Maximum
+    assert slide_controller.controller.sizePolicy().verticalPolicy() == expected_policy

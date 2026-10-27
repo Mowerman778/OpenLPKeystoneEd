@@ -239,7 +239,8 @@ class SlideController(QtWidgets.QWidget, LogMixin, RegistryProperties):
         # Splitter
         self.splitter = QtWidgets.QSplitter(self.panel)
         self.splitter.setOrientation(QtCore.Qt.Vertical)
-        self.panel_layout.addWidget(self.splitter)
+        # The splitter gets all spare height, so the header row never grows into a blank band
+        self.panel_layout.addWidget(self.splitter, stretch=1)
         # The slide list starts above the picture; screen layouts can move it to the right (set_slide_list_position)
         self.slide_list_position = SLIDE_LIST_TOP
         # Actual controller section
@@ -635,12 +636,17 @@ class SlideController(QtWidgets.QWidget, LogMixin, RegistryProperties):
         :param str position: 'top' or 'right'
         """
         if position == SLIDE_LIST_RIGHT:
+            # Beside the picture the list must be able to grow to the full height, or it caps the whole row
+            self.controller.setSizePolicy(QtWidgets.QSizePolicy.Policy.Preferred,
+                                          QtWidgets.QSizePolicy.Policy.Expanding)
             self.splitter.setOrientation(QtCore.Qt.Horizontal)
             self.splitter.insertWidget(0, self.preview_frame)
             total = max(self.splitter.width(), 2)
             self.splitter.setSizes([total * 60 // 100, total * 40 // 100])
         else:
             position = SLIDE_LIST_TOP
+            self.controller.setSizePolicy(QtWidgets.QSizePolicy.Policy.Preferred,
+                                          QtWidgets.QSizePolicy.Policy.Maximum)
             self.splitter.setOrientation(QtCore.Qt.Vertical)
             self.splitter.insertWidget(0, self.controller)
             total = max(self.splitter.height(), 2)
