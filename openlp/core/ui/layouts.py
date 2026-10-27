@@ -99,7 +99,8 @@ class LayoutManager(QtCore.QObject, RegistryProperties):
         self.setup_ui()
         Registry().register_function('config_screen_changed', self.on_screens_changed)
         for dock in (main_window.preview_dock, main_window.live_dock):
-            dock.topLevelChanged.connect(lambda floating, moved_dock=dock: self.on_display_panel_moved(moved_dock))
+            dock.topLevelChanged.connect(
+                lambda floating, moved_dock=dock: floating and self.on_display_panel_moved(moved_dock))
 
     # ---- User interface ----
 
@@ -383,13 +384,14 @@ class LayoutManager(QtCore.QObject, RegistryProperties):
 
     @staticmethod
     def _redraw_panel(dock):
-        if not dock.isVisible():
+        # Only panels in their own window need it. Hiding a docked panel just after it was dropped makes the main
+        # window lose it (it disappears, leaving the blue drop placeholder).
+        if not dock.isVisible() or not dock.isFloating():
             return
-        geometry = dock.geometry() if dock.isFloating() else None
+        geometry = dock.geometry()
         dock.hide()
         dock.show()
-        if geometry:
-            dock.setGeometry(geometry)
+        dock.setGeometry(geometry)
 
     def _size_built_in_panels(self, two_monitors):
         """

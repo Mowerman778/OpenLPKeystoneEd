@@ -495,3 +495,16 @@ def test_floating_display_panel_hooked_up(manager, window):
     with patch.object(manager, 'on_display_panel_moved') as mocked_moved:
         window.live_dock.topLevelChanged.emit(True)
     mocked_moved.assert_called_once_with(window.live_dock)
+
+
+def test_docked_display_panel_not_redrawn(manager, window):
+    """
+    Test docking Preview/Live back into the main window doesn't hide them (that made the main window lose the panel)
+    """
+    window.show()
+    with patch.object(manager, 'on_display_panel_moved') as mocked_moved:
+        window.preview_dock.topLevelChanged.emit(False)
+    mocked_moved.assert_not_called()
+    with patch.object(window.preview_dock, 'hide') as mocked_hide:
+        manager._redraw_panel(window.preview_dock)
+    mocked_hide.assert_not_called()
