@@ -27,6 +27,8 @@ import sys
 from datetime import timedelta
 from unittest.mock import MagicMock, call, patch, ANY
 
+from PyQt5 import QtCore, QtWidgets
+
 import pytest
 
 from openlp.core.common.registry import Registry
@@ -898,3 +900,25 @@ def test_update_ui_dvd(mocked_get_vlc):
     mocked_controller.mediabar.seek_slider.setSliderPosition.assert_called_with(200)
     expected_calls = [call(True), call(False)]
     assert expected_calls == mocked_controller.mediabar.seek_slider.blockSignals.call_args_list
+
+
+def test_add_display_keeps_parents_alien(settings):
+    """
+    Test only the video frame gets a native window: its parents (for Preview, the panel and its dock) must not become
+    native, or they stop drawing when the panel is undocked or docked back
+    """
+    # GIVEN: A video frame inside a panel inside a window
+    from openlp.core.ui.media.mediaplayer import MediaPlayer
+    top = QtWidgets.QWidget()
+    panel = QtWidgets.QWidget(top)
+    controller = MagicMock()
+    controller.vlc_widget = QtWidgets.QFrame(panel)
+    player = MediaPlayer(None)
+
+    # WHEN: The video frame is handed to VLC
+    player.add_display(controller)
+
+    # THEN: The frame is native, the panel is not
+    assert controller.vlc_widget.testAttribute(QtCore.Qt.WA_NativeWindow)
+    assert not panel.testAttribute(QtCore.Qt.WA_NativeWindow)
+    top.close()

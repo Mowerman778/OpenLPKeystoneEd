@@ -21,6 +21,8 @@
 """
 The :mod:`~openlp.core.ui.media.mediaplayer` module contains the MediaPlayer class.
 """
+from PyQt5 import QtCore
+
 from openlp.core.common.mixins import RegistryProperties
 from openlp.core.common.platform import is_macosx, is_win
 from openlp.core.display.screens import ScreenList
@@ -77,6 +79,9 @@ class MediaPlayer(RegistryProperties):
         # This is platform specific!
         # You have to give the id of the QFrame (or similar object)
         # to vlc, different platforms have different functions for this.
+        # Only the video frame itself needs a native window. Without this Qt also makes every parent native - for
+        # Preview that includes its panel and dock, which then stop drawing once the panel is moved or undocked.
+        controller.vlc_widget.setAttribute(QtCore.Qt.WA_DontCreateNativeAncestors)
         win_id = int(controller.vlc_widget.winId())
         if is_win():
             controller.vlc_media_player.set_hwnd(win_id)
