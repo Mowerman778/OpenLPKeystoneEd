@@ -186,7 +186,7 @@ class SlideController(QtWidgets.QWidget, LogMixin, RegistryProperties):
         Initialise the UI elements of the controller
         """
         try:
-            self.ratio = self.screens.current.display_geometry.width() / self.screens.current.display_geometry.height()
+            self.ratio = self.screens.current.render_size.width() / self.screens.current.render_size.height()
         except ZeroDivisionError:
             self.ratio = 1
         self.process_queue_lock = Lock()
@@ -197,7 +197,10 @@ class SlideController(QtWidgets.QWidget, LogMixin, RegistryProperties):
         self.service_item = None
         self.slide_limits = None
         self.update_slide_limits()
-        self.panel = QtWidgets.QWidget(self.main_window.control_splitter)
+        # The panel lives in its own dock (see MainWindow.setup_ui), so it can be moved to another monitor
+        dock = self.main_window.live_dock if self.is_live else self.main_window.preview_dock
+        self.panel = QtWidgets.QWidget(dock)
+        dock.setWidget(self.panel)
         self.slide_list = {}
         self.slide_count = 0
         self.ignore_toolbar_resize_events = False
@@ -624,14 +627,14 @@ class SlideController(QtWidgets.QWidget, LogMixin, RegistryProperties):
         """
         Settings dialog has changed the screen size of adjust output and screen previews.
         """
-        size = self.screens.current.display_geometry.size()
+        size = self.screens.current.render_size
         if self.is_live and self.displays:
             for display in self.displays:
-                display.resize(size)
+                display.update_from_screen(self.screens.current)
         old_preview_width = self.preview_display.size().width()
         scale = old_preview_width / size.width()
         new_preview_size = size * scale
-        self.ratio = self.screens.current.display_geometry.width() / self.screens.current.display_geometry.height()
+        self.ratio = self.screens.current.render_size.width() / self.screens.current.render_size.height()
         self.preview_display.resize(new_preview_size)
         self.slide_layout.set_aspect_ratio(self.ratio)
         self.on_controller_size_changed()
@@ -916,7 +919,7 @@ class SlideController(QtWidgets.QWidget, LogMixin, RegistryProperties):
                 display.finish_with_current_item()
         # Prepare the new slides for text / image items
         row = 0
-        width = self.main_window.control_splitter.sizes()[self.split]
+        width = self.panel.width()
         if self.service_item.is_text():
             self.preview_display.load_verses(self.service_item.rendered_slides)
             self.preview_display.show()
@@ -1022,7 +1025,7 @@ class SlideController(QtWidgets.QWidget, LogMixin, RegistryProperties):
         """
         request = self.sender().text()
         slide_no = self.slide_list[request]
-        width = self.main_window.control_splitter.sizes()[self.split]
+        width = self.panel.width()
         self.preview_widget.replace_service_item(self.service_item, width, slide_no)
         self.slide_selected()
 
@@ -1033,7 +1036,8 @@ class SlideController(QtWidgets.QWidget, LogMixin, RegistryProperties):
         display_with = 0
         for screen in self.screens:
             if screen.is_display:
-                display_with = screen.display_geometry.width()
+                # Slides are laid out at the render size (which may be a simulated HD resolution)
+                display_with = screen.render_size.width()
         if display_with == 0:
             ratio = 0.25
         else:

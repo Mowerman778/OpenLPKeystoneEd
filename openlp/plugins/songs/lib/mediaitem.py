@@ -620,6 +620,7 @@ class SongMediaItem(MediaManagerItem):
                             if uppercase:
                                 split_verse = "{uc}" + split_verse + "{/uc}"
                             service_item.add_from_text(split_verse, verse_def)
+        self.generate_credits_slide(service_item, mako_vars)
         service_item.data_string = {
             'title': song.search_title,
             'alternate_title': song.alternate_title,
@@ -837,6 +838,19 @@ class SongMediaItem(MediaManagerItem):
                 service_item.add_from_text(first_slide, 'O2', footer_html='', metadata=slide_metadata)
             mako_vars['first_slide'] = False
         return author_list
+
+    def generate_credits_slide(self, service_item, mako_vars):
+        """
+        Append a credits slide (title, authors, copyright, CCLI) after the last verse, if enabled in settings.
+        Uses the footer template, rendered as a full slide like the "Same as Footer" first slide.
+        """
+        if not self.settings.value('songs/last slide credits'):
+            return
+        mako_vars['first_slide'] = True
+        credits = self._generate_mako_footer(mako_vars, False)  # Avoiding show message error box twice
+        mako_vars['first_slide'] = False
+        credits = credits if credits is not None else '\n'.join(service_item.raw_footer)
+        service_item.add_from_text(credits, 'O3', footer_html='', metadata={'songs_last_slide_type': 'credits'})
 
     @staticmethod
     def _authors_match(song, authors):

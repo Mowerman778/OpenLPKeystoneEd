@@ -547,6 +547,9 @@ def main():
     else:
         set_up_logging(AppLocation.get_directory(AppLocation.CacheDir))
         set_up_web_engine_cache(AppLocation.get_directory(AppLocation.CacheDir) / 'web_cache')
+    # Help > Debug Logging turns on detailed logging without needing the -l debug command line option
+    if settings.value('advanced/debug logging') is True:
+        log.setLevel(logging.DEBUG)
     settings.init_default_shortcuts()
     # Set the libvlc environment variable if we're frozen
     if getattr(sys, 'frozen', False):

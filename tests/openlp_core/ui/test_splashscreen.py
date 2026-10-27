@@ -21,12 +21,13 @@
 """
 Package to test the openlp.core.ui package.
 """
-from PyQt5 import QtCore
+from PyQt5 import QtCore, QtWidgets
 
+import openlp.core.resources  # noqa: F401  (registers the :/graphics images)
 from openlp.core.ui.splashscreen import SplashScreen
 
 
-def test_splashscreen():
+def test_splashscreen(qapp):
     """
     Test that the SpashScreen is created correctly
     """
@@ -40,3 +41,29 @@ def test_splashscreen():
     assert ss.frameSize() == QtCore.QSize(370, 370), 'The frameSize should be (370, 370)'
     assert ss.contextMenuPolicy() == QtCore.Qt.PreventContextMenu, 'The ContextMenuPolicy ' \
         'should have been QtCore.Qt.PreventContextMenu or 4'
+
+
+def test_splashscreen_whole_image_fits(qapp):
+    """
+    Test that the high resolution splash image is scaled so the whole logo fits the window, not just a corner
+    """
+    # GIVEN / WHEN: A splash screen is created
+    ss = SplashScreen()
+
+    # THEN: The image's logical size should match the window
+    pixmap = ss.pixmap()
+    logical_size = pixmap.size() / pixmap.devicePixelRatioF()
+    assert abs(logical_size.width() - 370) <= 1
+    assert abs(logical_size.height() - 370) <= 1
+
+
+def test_splashscreen_centred(qapp):
+    """
+    Test that the splash screen is centred on the primary screen
+    """
+    # GIVEN / WHEN: A splash screen is created
+    ss = SplashScreen()
+
+    # THEN: Its centre should be the centre of the primary screen
+    screen_centre = QtWidgets.QApplication.primaryScreen().availableGeometry().center()
+    assert (ss.frameGeometry().center() - screen_centre).manhattanLength() <= 2

@@ -597,3 +597,48 @@ def test_swap_primary_screen(mocked_screens, settings):
     assert screen_list.screens[1].geometry == QtCore.QRect(1024, 0, 1024, 768)
     assert screen_list.screens[1].is_primary is True
     assert screen_list.screens[1].is_display is False
+
+
+def test_simulated_resolution_render_size_and_scale():
+    """
+    Test a screen simulating an HD projector in a small window lays slides out at HD and shrinks them to fit
+    """
+    # GIVEN: A display window of 480x270 simulating 1920x1080
+    screen = Screen(number=0, geometry=QtCore.QRect(-1280, 0, 1280, 720),
+                    custom_geometry=QtCore.QRect(790, 400, 480, 270), is_display=True,
+                    simulated_resolution=QtCore.QSize(1920, 1080))
+
+    # THEN: Slides are laid out at 1920x1080, shrunk to a quarter, in the 480x270 window
+    assert screen.render_size == QtCore.QSize(1920, 1080)
+    assert screen.display_scale == 0.25
+    assert screen.display_geometry == QtCore.QRect(-490, 400, 480, 270)
+
+
+def test_no_simulated_resolution():
+    """
+    Test a normal screen renders at its own size, unscaled
+    """
+    screen = Screen(number=0, geometry=QtCore.QRect(0, 0, 1920, 1080), is_display=True)
+    assert screen.render_size == QtCore.QSize(1920, 1080)
+    assert screen.display_scale == 1
+
+
+def test_simulated_resolution_saved_and_loaded():
+    """
+    Test the simulated resolution survives saving and loading the screen settings, and can be turned off
+    """
+    # GIVEN: A screen with a simulated resolution
+    screen = Screen(number=0, geometry=QtCore.QRect(0, 0, 1280, 720), simulated_resolution=QtCore.QSize(1920, 1080))
+
+    # WHEN: It is saved and loaded again
+    screen_dict = screen.to_dict()
+    loaded = Screen.from_dict(dict(screen_dict))
+
+    # THEN: The resolution is kept, and an update without it leaves it alone, while None turns it off
+    assert screen_dict['simulated_resolution'] == {'width': 1920, 'height': 1080}
+    assert loaded.simulated_resolution == QtCore.QSize(1920, 1080)
+    loaded.update({'is_display': True})
+    assert loaded.simulated_resolution == QtCore.QSize(1920, 1080)
+    loaded.update({'simulated_resolution': None})
+    assert loaded.simulated_resolution is None
+    assert 'simulated_resolution' not in loaded.to_dict()

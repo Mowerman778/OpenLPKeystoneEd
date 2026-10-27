@@ -24,6 +24,8 @@ The splash screen
 
 from PyQt5 import QtCore, QtGui, QtWidgets
 
+SPLASH_SIZE = 370
+
 
 class SplashScreen(QtWidgets.QSplashScreen):
     """
@@ -42,7 +44,23 @@ class SplashScreen(QtWidgets.QSplashScreen):
         """
         self.setObjectName('splashScreen')
         self.setContextMenuPolicy(QtCore.Qt.PreventContextMenu)
-        splash_image = QtGui.QPixmap(':/graphics/openlp-splash-screen.png')
-        splash_image.setDevicePixelRatio(self.devicePixelRatioF())
+        # The image is a high resolution (3x) asset: scale it to SPLASH_SIZE logical pixels for this screen's pixel
+        # ratio, otherwise a normal (1x) screen shows only its top-left corner.
+        pixel_ratio = self.devicePixelRatioF()
+        splash_image = QtGui.QPixmap(':/graphics/openlp-splash-screen.png').scaled(
+            round(SPLASH_SIZE * pixel_ratio), round(SPLASH_SIZE * pixel_ratio),
+            QtCore.Qt.KeepAspectRatio, QtCore.Qt.SmoothTransformation)
+        splash_image.setDevicePixelRatio(pixel_ratio)
         self.setPixmap(splash_image)
-        self.resize(370, 370)
+        self.resize(SPLASH_SIZE, SPLASH_SIZE)
+        self.centre_on_screen()
+
+    def centre_on_screen(self):
+        """
+        Centre the splash screen on the primary screen
+        """
+        screen = QtWidgets.QApplication.primaryScreen()
+        if screen:
+            frame = self.frameGeometry()
+            frame.moveCenter(screen.availableGeometry().center())
+            self.move(frame.topLeft())

@@ -709,3 +709,49 @@ def test_song_first_slide_creation_works(mocked_get_verses, mocked__get_id_of_it
         assert service_item.slides[0]['text'] == service_item.footer_html
         # It needs to have empty footer as it's already shown on text
         assert service_item.slides[0]['footer_html'] == ''
+
+
+@patch('openlp.plugins.songs.lib.mediaitem.SongMediaItem._get_id_of_item_to_generate')
+@patch('openlp.plugins.songs.lib.mediaitem.SongXML.get_verses')
+@pytest.mark.parametrize('last_slide_credits', [True, False])
+def test_song_last_slide_credits(mocked_get_verses, mocked__get_id_of_item_to_generate, media_item,
+                                 last_slide_credits, settings):
+    """
+    Test that a credits slide is appended after the last verse only when the setting is on
+    """
+    # GIVEN: A Song and a Service Item
+    mocked__get_id_of_item_to_generate.return_value = '00000000-0000-0000-0000-000000000000'
+    settings.setValue('songs/last slide credits', last_slide_credits)
+    mocked_get_verses.return_value = SONG_VERSES_TEST_LYRICS
+    media_item.plugin = MagicMock()
+    media_item.open_lyrics = OpenLyrics(media_item.plugin.manager)
+    song = Song()
+    song.title = 'My Song'
+    song.alternate_title = ''
+    song.copyright = 'My copyright'
+    song.authors_songs = []
+    song.songbook_entries = []
+    song.theme_name = 'Default'
+    song.topics = []
+    song.ccli_number = ''
+    song.lyrics = '<fake xml>'  # Mocked by mocked_get_verses
+    song.verse_order = SONG_VERSES_TEST_VERSE_ORDER
+    song.search_title = 'my song@'
+    song.last_modified = '2023-02-20T00:00:00Z'
+    song.media_files = []
+    song.comments = ''
+    service_item = ServiceItem(None)
+    media_item.plugin.manager.get_object.return_value = song
+
+    # WHEN: The slides are generated
+    media_item.generate_slide_data(service_item, item=song)
+
+    # THEN: The last slide is the credits slide only when enabled
+    last_slide = service_item.slides[-1]
+    if last_slide_credits:
+        assert last_slide['metadata']['songs_last_slide_type'] == 'credits'
+        assert last_slide['text'] == service_item.footer_html
+        assert 'My Song' in last_slide['text']
+        assert last_slide['footer_html'] == ''
+    else:
+        assert 'songs_last_slide_type' not in last_slide.get('metadata', {})

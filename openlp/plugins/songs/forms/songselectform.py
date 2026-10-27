@@ -23,17 +23,19 @@ The :mod:`~openlp.plugins.songs.forms.songselectform` module contains the GUI fo
 """
 import logging
 import re
+from pathlib import Path
 
-from PyQt5 import QtCore, QtWidgets, QtWebEngineWidgets
+from PyQt5 import QtCore, QtGui, QtWidgets, QtWebEngineWidgets
 from sqlalchemy.sql import and_
 from tempfile import TemporaryDirectory
 
 from openlp.core.common.i18n import translate
 from openlp.core.common.mixins import RegistryProperties
 from openlp.core.common.platform import is_linux, is_macosx
+from openlp.core.widgets.dialogs import FileDialog
 from openlp.plugins.songs.forms.songselectdialog import Ui_SongSelectDialog
 from openlp.plugins.songs.lib.db import Song
-from openlp.plugins.songs.lib.songselect import SongSelectImport, Pages
+from openlp.plugins.songs.lib.songselect import LOGIN_PAGE, SEARCH_URL, SongSelectImport, Pages
 from openlp.plugins.songs.lib.importers.chordpro import ChordProImport
 from openlp.plugins.songs.lib.importers.cclifile import CCLIFileImport
 
@@ -60,6 +62,38 @@ if (!String.prototype.replaceAll) {
 
 log = logging.getLogger(__name__)
 
+SONGSELECT_FILE_SUFFIXES = ('.txt', '.chordpro', '.cho', '.chopro', '.pro')
+# Give the browser a moment to finish writing a download before it is read
+AUTO_IMPORT_DELAY_MS = 1000
+
+
+def get_downloads_folder():
+    """
+    Get the user's Downloads folder (which Windows lets the user move), falling back to their home folder.
+
+    :rtype: pathlib.Path
+    """
+    location = QtCore.QStandardPaths.writableLocation(QtCore.QStandardPaths.DownloadLocation)
+    downloads = Path(location) if location else Path.home() / 'Downloads'
+    return downloads if downloads.is_dir() else Path.home()
+
+
+def is_songselect_file(file_path):
+    """
+    Check whether a downloaded file looks like a SongSelect lyrics or ChordPro file, so that unrelated downloads
+    landing in the same folder are left alone.
+
+    :param pathlib.Path file_path: The file to check
+    :rtype: bool
+    """
+    if file_path.suffix.lower() not in SONGSELECT_FILE_SUFFIXES or not file_path.is_file():
+        return False
+    try:
+        with file_path.open('rt', encoding='utf-8-sig', errors='replace') as song_file:
+            return 'ccli' in song_file.read(100000).lower()
+    except OSError:
+        return False
+
 
 class SongSelectForm(QtWidgets.QDialog, Ui_SongSelectDialog, RegistryProperties):
     """
@@ -74,6 +108,9 @@ class SongSelectForm(QtWidgets.QDialog, Ui_SongSelectDialog, RegistryProperties)
         self.setup_ui(self)
         self.current_download_item = None
         self.tmp_folder = TemporaryDirectory(prefix='openlp_songselect_', ignore_cleanup_errors=True)
+        self.downloads_watcher = None
+        self.downloads_folder = None
+        self.seen_downloads = set()
 
     def initialise(self):
         """
@@ -84,6 +121,10 @@ class SongSelectForm(QtWidgets.QDialog, Ui_SongSelectDialog, RegistryProperties)
         self.url_bar.returnPressed.connect(self.on_url_bar_return_pressed)
         self.back_button.clicked.connect(self.on_back_button_clicked)
         self.close_button.clicked.connect(self.done)
+        self.browser_button.clicked.connect(self.on_browser_button_clicked)
+        self.search_button.clicked.connect(self.on_search_button_clicked)
+        self.search_edit.returnPressed.connect(self.on_search_button_clicked)
+        self.import_files_button.clicked.connect(self.on_import_files_button_clicked)
         # We need to set the user agent to an up to date browser version do to the pyqtwebengine package
         # from pypi has not been updated in ages...
         # TODO: get the latest version number from somewhere
@@ -125,28 +166,70 @@ class SongSelectForm(QtWidgets.QDialog, Ui_SongSelectDialog, RegistryProperties)
                 self.song_progress_bar.setValue(2)
                 song_filename = self.current_download_item.downloadDirectory() + '/' \
                     + self.current_download_item.downloadFileName()
-                song_file = open(song_filename, 'rt', encoding='utf-8')
-                song_content = song_file.read()
-                song_file.seek(0)
-                if self.check_for_duplicate(song_content):
-                    # if a chordpro title tag is in the file, assume it is chordpro format
-                    if '{title:' in song_content:
-                        # assume it is a ChordPro file
-                        chordpro_importer = ChordProImport(self.plugin.manager, file_path=song_filename)
-                        chordpro_importer.do_import_file(song_file)
-                    else:
-                        # assume it is a simple lyrics
-                        cccli_lyrics_importer = CCLIFileImport(self.plugin.manager, file_path=song_filename)
-                        lines = song_file.readlines()
-                        cccli_lyrics_importer.do_import_txt_file(lines)
+                if self.import_song_file(Path(song_filename)):
                     self.song_progress_bar.setValue(3)
                     QtWidgets.QMessageBox.information(self, translate('SongsPlugin.SongSelectForm', 'Song Imported'),
                                                       translate('SongsPlugin.SongSelectForm',
                                                                 'Your song has been imported'))
-                song_file.close()
                 self.song_progress_bar.setVisible(False)
             self.url_bar.setVisible(True)
             self.webview.setEnabled(True)
+
+    def import_song_file(self, file_path):
+        """
+        Import a song file downloaded from SongSelect (simple lyrics .txt or ChordPro).
+
+        :param pathlib.Path file_path: The downloaded file
+        :return: True if the song was imported, False if the user skipped it as a duplicate
+        """
+        # SongSelect downloads are UTF-8, sometimes with a byte order mark
+        with file_path.open('rt', encoding='utf-8-sig') as song_file:
+            song_content = song_file.read()
+            song_file.seek(0)
+            if not self.check_for_duplicate(song_content):
+                return False
+            # if a chordpro title tag is in the file, assume it is chordpro format
+            if '{title:' in song_content:
+                chordpro_importer = ChordProImport(self.plugin.manager, file_path=file_path)
+                chordpro_importer.do_import_file(song_file)
+            else:
+                # assume it is a simple lyrics
+                cccli_lyrics_importer = CCLIFileImport(self.plugin.manager, file_path=file_path)
+                if not cccli_lyrics_importer.do_import_txt_file(song_file.readlines()):
+                    raise ValueError('Not a valid SongSelect lyrics file: {name}'.format(name=file_path.name))
+        return True
+
+    def on_browser_button_clicked(self):
+        """
+        Open the SongSelect sign-in page in the user's normal web browser
+        """
+        QtGui.QDesktopServices.openUrl(QtCore.QUrl(LOGIN_PAGE))
+
+    def on_import_files_button_clicked(self):
+        """
+        Let the user pick songs they downloaded from SongSelect in their browser, and import them
+        """
+        file_paths, _ = FileDialog.getOpenFileNames(
+            self, translate('SongsPlugin.SongSelectForm', 'Select songs downloaded from SongSelect'),
+            get_downloads_folder(),
+            translate('SongsPlugin.SongSelectForm', 'SongSelect files (*.txt *.chordpro *.cho *.chopro *.pro);;'
+                                                    'All files (*)'))
+        imported = 0
+        failed = []
+        for file_path in file_paths:
+            try:
+                if self.import_song_file(file_path):
+                    imported += 1
+            except Exception:
+                log.exception('Failed to import SongSelect file {path}'.format(path=file_path))
+                failed.append(file_path.name)
+        if not file_paths:
+            return
+        message = translate('SongsPlugin.SongSelectForm', '{count} song(s) imported.').format(count=imported)
+        if failed:
+            message += '\n\n' + translate('SongsPlugin.SongSelectForm', 'These files could not be imported:') + \
+                '\n' + '\n'.join(failed)
+        QtWidgets.QMessageBox.information(self, translate('SongsPlugin.SongSelectForm', 'Import Finished'), message)
 
     @QtCore.pyqtSlot(QtWebEngineWidgets.QWebEngineDownloadItem)
     def on_download_requested(self, download_item):
@@ -177,6 +260,8 @@ class SongSelectForm(QtWidgets.QDialog, Ui_SongSelectDialog, RegistryProperties)
         self.song_select_importer.reset_webview()
         self.back_button.setEnabled(False)
         self.stacked_widget.setCurrentIndex(0)
+        self.start_downloads_watcher()
+        self.search_edit.setFocus()
         return QtWidgets.QDialog.exec(self)
 
     def done(self, result_code):
@@ -185,15 +270,91 @@ class SongSelectForm(QtWidgets.QDialog, Ui_SongSelectDialog, RegistryProperties)
 
         :param result_code: The result of the dialog.
         """
+        self.stop_downloads_watcher()
         return QtWidgets.QDialog.done(self, result_code)
+
+    def start_downloads_watcher(self):
+        """
+        Watch the Downloads folder while this window is open, so songs downloaded from SongSelect in the user's
+        browser are imported automatically. Files already there are ignored.
+        """
+        self.stop_downloads_watcher()
+        self.downloads_folder = get_downloads_folder()
+        self.seen_downloads = set(self.downloads_folder.iterdir())
+        self.downloads_watcher = QtCore.QFileSystemWatcher([str(self.downloads_folder)], self)
+        self.downloads_watcher.directoryChanged.connect(self.on_downloads_folder_changed)
+
+    def stop_downloads_watcher(self):
+        """
+        Stop watching the Downloads folder
+        """
+        if self.downloads_watcher:
+            self.downloads_watcher.directoryChanged.disconnect(self.on_downloads_folder_changed)
+            self.downloads_watcher.deleteLater()
+            self.downloads_watcher = None
+
+    def on_downloads_folder_changed(self, folder):
+        """
+        Something changed in the Downloads folder: queue any new SongSelect-type files for import. Browsers write to a
+        temporary name (.crdownload, .part) and rename when finished, so the real name only appears once complete.
+        """
+        try:
+            current_files = set(self.downloads_folder.iterdir())
+        except OSError:
+            log.exception('Could not read the Downloads folder')
+            return
+        new_files = current_files - self.seen_downloads
+        self.seen_downloads = current_files
+        for file_path in sorted(new_files):
+            if file_path.suffix.lower() in SONGSELECT_FILE_SUFFIXES:
+                QtCore.QTimer.singleShot(AUTO_IMPORT_DELAY_MS, lambda path=file_path: self.auto_import_file(path))
+
+    def auto_import_file(self, file_path):
+        """
+        Import a file that just appeared in the Downloads folder, if it is a SongSelect song
+
+        :param pathlib.Path file_path: The new file
+        """
+        if not is_songselect_file(file_path):
+            log.debug('Ignoring download that is not a SongSelect song: {path}'.format(path=file_path))
+            return
+        try:
+            imported = self.import_song_file(file_path)
+        except Exception:
+            log.exception('Failed to auto-import SongSelect file {path}'.format(path=file_path))
+            self.message_area.setText(translate('SongsPlugin.SongSelectForm',
+                                                'Could not import {name}').format(name=file_path.name))
+            return
+        if imported:
+            self.message_area.setText(translate('SongsPlugin.SongSelectForm',
+                                                'Imported: {name}').format(name=file_path.stem))
+            if self.plugin.media_item:
+                self.plugin.media_item.on_search_text_button_clicked()
+
+    def on_search_button_clicked(self):
+        """
+        Open the SongSelect search results for the text in the search box, in the user's web browser
+        """
+        search_text = self.search_edit.text().strip()
+        if not search_text:
+            self.on_browser_button_clicked()
+            return
+        url = QtCore.QUrl(SEARCH_URL)
+        query = QtCore.QUrlQuery()
+        query.addQueryItem('search', search_text)
+        url.setQuery(query)
+        QtGui.QDesktopServices.openUrl(url)
+        self.message_area.setText(translate('SongsPlugin.SongSelectForm',
+                                            'Click "Download" on the song in your browser. It will be imported here '
+                                            'automatically.'))
 
     def page_load_started(self):
         self.back_button.setEnabled(False)
         self.url_bar.setCursorPosition(0)
         self.url_bar.setVisible(True)
         self.message_area.setText(translate('SongsPlugin.SongSelectForm',
-                                            'Import songs by clicking the "Download" in the Lyrics tab '
-                                            'or "Download ChordPro" in the Chords tabs.'))
+                                            'Type a song above and click "Search SongSelect". In your browser, click '
+                                            '"Download" on the Lyrics tab - the song is imported here automatically.'))
 
     def page_loaded(self, successful):
         self.song = None

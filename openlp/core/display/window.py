@@ -197,8 +197,8 @@ class DisplayWindow(QtWidgets.QWidget, RegistryProperties, LogMixin):
             self.log_debug('registering live display show/hide functions')
             Registry().register_function('live_display_hide', self.hide_display)
             Registry().register_function('live_display_show', self.show_display)
-            self.update_from_screen(screen)
             self.is_display = True
+            self.update_from_screen(screen)
             # The webview swallows context menu events (see on_context_menu_requested), so ask it to emit
             # customContextMenuRequested instead of handling the right-click itself.
             self.webview.setContextMenuPolicy(QtCore.Qt.CustomContextMenu)
@@ -313,6 +313,9 @@ class DisplayWindow(QtWidgets.QWidget, RegistryProperties, LogMixin):
         """
         self.setGeometry(screen.display_geometry)
         self.screen_number = screen.number
+        # A simulated resolution (e.g. an HD projector mocked up in a small window) shrinks the slides to fit
+        if self.is_display:
+            self.set_scale(screen.display_scale)
 
     def set_background_image(self, image_path):
         image_uri = image_path.as_uri()

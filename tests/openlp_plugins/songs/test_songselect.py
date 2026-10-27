@@ -26,6 +26,7 @@ then test the behaviour based on those. That way if and when CCLI change
 their page layout, changing the tests would just be a case of
 re-downloading the HTML pages and changing the code to use the new layout.
 """
+from pathlib import Path
 from unittest.mock import MagicMock, patch, sentinel
 
 import pytest
@@ -33,9 +34,9 @@ from PyQt5 import QtCore
 
 from openlp.core.common.registry import Registry
 from openlp.core.common.settings import Settings
-from openlp.plugins.songs.forms.songselectform import SongSelectForm
+from openlp.plugins.songs.forms.songselectform import SongSelectForm, is_songselect_file
 from openlp.plugins.songs.lib import Song
-from openlp.plugins.songs.lib.songselect import BASE_URL, LOGIN_PAGE, Pages, SongSelectImport
+from openlp.plugins.songs.lib.songselect import BASE_URL, LOGIN_PAGE, SEARCH_URL, Pages, SongSelectImport
 from tests.helpers.songfileimport import SongImportTestHelper
 from tests.utils.constants import RESOURCE_PATH
 
@@ -451,11 +452,13 @@ def test_exec(mocked_exec: MagicMock, form: SongSelectForm):
     form.stacked_widget = MagicMock()
 
     # WHEN: The initialise method is run
-    form.exec()
+    with patch.object(form, 'start_downloads_watcher') as mocked_start_watcher:
+        form.exec()
 
-    # THEN: Should have reset webview, set stack to 0 and pass on the event
+    # THEN: Should have reset webview, set stack to 0, started watching Downloads and pass on the event
     form.song_select_importer.reset_webview.assert_called_once()
     form.stacked_widget.setCurrentIndex.assert_called_with(0)
+    mocked_start_watcher.assert_called_once()
     mocked_exec.assert_called_once()
 
 
@@ -489,8 +492,9 @@ def test_page_load_started(form: SongSelectForm):
 
     # THEN: The UI should be set up accordingly
     form.back_button.setEnabled.assert_called_with(False)
-    form.message_area.setText.assert_called_with('Import songs by clicking the "Download" in the Lyrics tab '
-                                                 'or "Download ChordPro" in the Chords tabs.')
+    form.message_area.setText.assert_called_with('Type a song above and click "Search SongSelect". In your browser, '
+                                                 'click "Download" on the Lyrics tab - the song is imported here '
+                                                 'automatically.')
 
 
 def test_page_loaded_login(form: SongSelectForm):
@@ -678,3 +682,233 @@ def test_songselect_file_import(registry: Registry, settings: Settings):
                            helper.load_external_result_data(TEST_PATH / 'TestSong-txt.json'))
         helper.file_import([TEST_PATH / 'TestSong2023.txt'],
                            helper.load_external_result_data(TEST_PATH / 'TestSong2023-txt.json'))
+
+
+def test_on_browser_button_clicked(form: SongSelectForm):
+    """
+    Test that the browser button opens the SongSelect sign-in page in the user's web browser
+    """
+    # GIVEN: A SongSelect form
+    with patch('openlp.plugins.songs.forms.songselectform.QtGui.QDesktopServices.openUrl') as mocked_open_url:
+        # WHEN: The browser button is clicked
+        form.on_browser_button_clicked()
+
+    # THEN: The login page should be opened externally
+    mocked_open_url.assert_called_once_with(QtCore.QUrl(LOGIN_PAGE))
+
+
+@patch('openlp.plugins.songs.forms.songselectform.CCLIFileImport')
+def test_import_song_file_lyrics(MockedCCLIFileImport: MagicMock, form: SongSelectForm):
+    """
+    Test that a SongSelect lyrics .txt file is imported with the CCLI importer
+    """
+    # GIVEN: A real SongSelect lyrics file and no duplicate in the database
+    MockedCCLIFileImport.return_value.do_import_txt_file.return_value = True
+    with patch.object(form, 'check_for_duplicate', return_value=True):
+        # WHEN: The file is imported
+        result = form.import_song_file(TEST_PATH / 'TestSong2023.txt')
+
+    # THEN: The CCLI importer should have been given the lines of the file
+    assert result is True
+    lines = MockedCCLIFileImport.return_value.do_import_txt_file.call_args[0][0]
+    assert lines[0].strip() != '', 'The byte order mark should have been stripped and lines passed through'
+
+
+@patch('openlp.plugins.songs.forms.songselectform.CCLIFileImport')
+def test_import_song_file_invalid_lyrics(MockedCCLIFileImport: MagicMock, form: SongSelectForm):
+    """
+    Test that a file the CCLI importer rejects raises, so the caller can report it
+    """
+    # GIVEN: A CCLI importer that rejects the file
+    MockedCCLIFileImport.return_value.do_import_txt_file.return_value = False
+    with patch.object(form, 'check_for_duplicate', return_value=True):
+        # WHEN / THEN: Importing raises a ValueError
+        with pytest.raises(ValueError):
+            form.import_song_file(TEST_PATH / 'TestSong2023.txt')
+
+
+@patch('openlp.plugins.songs.forms.songselectform.ChordProImport')
+def test_import_song_file_chordpro(MockedChordProImport: MagicMock, form: SongSelectForm, tmp_path):
+    """
+    Test that a file with a ChordPro title tag is imported with the ChordPro importer
+    """
+    # GIVEN: A ChordPro file
+    song_path = tmp_path / 'song.chordpro'
+    song_path.write_text('{title: Amazing Grace}\n[G]Amazing grace\n', encoding='utf-8')
+    with patch.object(form, 'check_for_duplicate', return_value=True):
+        # WHEN: The file is imported
+        result = form.import_song_file(song_path)
+
+    # THEN: The ChordPro importer should have been used
+    assert result is True
+    MockedChordProImport.return_value.do_import_file.assert_called_once()
+
+
+@patch('openlp.plugins.songs.forms.songselectform.CCLIFileImport')
+def test_import_song_file_duplicate_skipped(MockedCCLIFileImport: MagicMock, form: SongSelectForm):
+    """
+    Test that a duplicate the user declines is not imported
+    """
+    # GIVEN: The user says no to the duplicate warning
+    with patch.object(form, 'check_for_duplicate', return_value=False):
+        # WHEN: The file is imported
+        result = form.import_song_file(TEST_PATH / 'TestSong2023.txt')
+
+    # THEN: Nothing is imported
+    assert result is False
+    MockedCCLIFileImport.assert_not_called()
+
+
+@patch('openlp.plugins.songs.forms.songselectform.QtWidgets.QMessageBox.information')
+@patch('openlp.plugins.songs.forms.songselectform.FileDialog.getOpenFileNames')
+def test_on_import_files_button_clicked(mocked_get_files: MagicMock, mocked_information: MagicMock,
+                                        form: SongSelectForm):
+    """
+    Test that picked files are imported and a summary lists the count and any failures
+    """
+    # GIVEN: Two picked files, the second of which fails
+    mocked_get_files.return_value = ([Path('good.txt'), Path('bad.txt')], '')
+    with patch.object(form, 'import_song_file', side_effect=[True, ValueError('bad')]) as mocked_import:
+        # WHEN: The import button is clicked
+        form.on_import_files_button_clicked()
+
+    # THEN: Both are attempted and the summary reports 1 import and the failed file
+    assert mocked_import.call_count == 2
+    message = mocked_information.call_args[0][2]
+    assert '1 song(s) imported' in message
+    assert 'bad.txt' in message
+
+
+@patch('openlp.plugins.songs.forms.songselectform.QtWidgets.QMessageBox.information')
+@patch('openlp.plugins.songs.forms.songselectform.FileDialog.getOpenFileNames')
+def test_on_import_files_button_clicked_cancelled(mocked_get_files: MagicMock, mocked_information: MagicMock,
+                                                  form: SongSelectForm):
+    """
+    Test that cancelling the file picker does nothing
+    """
+    # GIVEN: The user cancels the file picker
+    mocked_get_files.return_value = ([], '')
+    # WHEN: The import button is clicked
+    form.on_import_files_button_clicked()
+    # THEN: No summary is shown
+    mocked_information.assert_not_called()
+
+
+def test_on_search_button_clicked(form: SongSelectForm):
+    """
+    Test that searching opens the SongSelect results for the search text in the user's browser
+    """
+    # GIVEN: Some search text
+    form.search_edit.setText('  Amazing Grace ')
+    with patch('openlp.plugins.songs.forms.songselectform.QtGui.QDesktopServices.openUrl') as mocked_open_url:
+        # WHEN: Search is clicked
+        form.on_search_button_clicked()
+
+    # THEN: The results page is opened with the trimmed search text
+    url = mocked_open_url.call_args[0][0]
+    assert url.toString(QtCore.QUrl.FullyDecoded) == SEARCH_URL + '?search=Amazing Grace'
+
+
+def test_on_search_button_clicked_empty(form: SongSelectForm):
+    """
+    Test that searching with no text just opens SongSelect
+    """
+    # GIVEN: An empty search box
+    form.search_edit.setText('')
+    with patch.object(form, 'on_browser_button_clicked') as mocked_browser:
+        # WHEN: Search is clicked
+        form.on_search_button_clicked()
+
+    # THEN: The sign-in page is opened instead
+    mocked_browser.assert_called_once()
+
+
+def test_is_songselect_file(tmp_path):
+    """
+    Test that only SongSelect-looking text/ChordPro files are picked up from the Downloads folder
+    """
+    # GIVEN: A SongSelect file, an unrelated text file and an unrelated file type
+    song = tmp_path / 'song.txt'
+    song.write_text('Amazing Grace\n\nVerse 1\nAmazing grace\n\nCCLI Song #22025\n', encoding='utf-8')
+    other_text = tmp_path / 'notes.txt'
+    other_text.write_text('Shopping list', encoding='utf-8')
+    other_type = tmp_path / 'song.pdf'
+    other_type.write_text('CCLI', encoding='utf-8')
+
+    # WHEN / THEN: Only the SongSelect file is recognised
+    assert is_songselect_file(song) is True
+    assert is_songselect_file(TEST_PATH / 'TestSong2023.txt') is True
+    assert is_songselect_file(other_text) is False
+    assert is_songselect_file(other_type) is False
+    assert is_songselect_file(tmp_path / 'missing.txt') is False
+
+
+@patch('openlp.plugins.songs.forms.songselectform.QtCore.QTimer.singleShot')
+def test_on_downloads_folder_changed(mocked_single_shot: MagicMock, form: SongSelectForm, tmp_path):
+    """
+    Test that only new files with a song file extension are queued for import
+    """
+    # GIVEN: A Downloads folder with an existing file being watched
+    (tmp_path / 'old.txt').write_text('CCLI', encoding='utf-8')
+    with patch('openlp.plugins.songs.forms.songselectform.get_downloads_folder', return_value=tmp_path):
+        form.start_downloads_watcher()
+
+    # WHEN: A new song, an unfinished download and a picture arrive
+    (tmp_path / 'new.txt').write_text('CCLI', encoding='utf-8')
+    (tmp_path / 'new.txt.crdownload').write_text('', encoding='utf-8')
+    (tmp_path / 'photo.jpg').write_text('', encoding='utf-8')
+    form.on_downloads_folder_changed(str(tmp_path))
+    form.stop_downloads_watcher()
+
+    # THEN: Only the new song is queued, and only once
+    assert mocked_single_shot.call_count == 1
+    with patch.object(form, 'auto_import_file') as mocked_auto_import:
+        mocked_single_shot.call_args[0][1]()
+    mocked_auto_import.assert_called_once_with(tmp_path / 'new.txt')
+    form.on_downloads_folder_changed(str(tmp_path))
+    assert mocked_single_shot.call_count == 1, 'Files already seen should not be queued again'
+
+
+def test_auto_import_file(form: SongSelectForm):
+    """
+    Test that a SongSelect download is imported, the status shown and the song list refreshed
+    """
+    # GIVEN: A SongSelect file
+    form.message_area = MagicMock()
+    with patch.object(form, 'import_song_file', return_value=True) as mocked_import:
+        # WHEN: It is auto-imported
+        form.auto_import_file(TEST_PATH / 'TestSong2023.txt')
+
+    # THEN: It is imported and the user told
+    mocked_import.assert_called_once_with(TEST_PATH / 'TestSong2023.txt')
+    form.message_area.setText.assert_called_with('Imported: TestSong2023')
+    form.plugin.media_item.on_search_text_button_clicked.assert_called_once()
+
+
+def test_auto_import_file_not_songselect(form: SongSelectForm, tmp_path):
+    """
+    Test that unrelated downloads are ignored
+    """
+    # GIVEN: An unrelated text file
+    other_text = tmp_path / 'notes.txt'
+    other_text.write_text('Shopping list', encoding='utf-8')
+    with patch.object(form, 'import_song_file') as mocked_import:
+        # WHEN: It is offered for auto-import
+        form.auto_import_file(other_text)
+
+    # THEN: It is not imported
+    mocked_import.assert_not_called()
+
+
+def test_auto_import_file_failure(form: SongSelectForm):
+    """
+    Test that a failed auto-import is reported without crashing
+    """
+    # GIVEN: An import that fails
+    form.message_area = MagicMock()
+    with patch.object(form, 'import_song_file', side_effect=ValueError('bad')):
+        # WHEN: It is auto-imported
+        form.auto_import_file(TEST_PATH / 'TestSong2023.txt')
+
+    # THEN: The user is told
+    form.message_area.setText.assert_called_with('Could not import TestSong2023.txt')

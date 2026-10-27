@@ -41,7 +41,7 @@ class Screen(object):
     """
 
     def __init__(self, number=None, geometry=None, custom_geometry=None, is_primary=False, is_display=False,
-                 device_pixel_ratio=1.0, raw_screen=None):
+                 device_pixel_ratio=1.0, raw_screen=None, simulated_resolution=None):
         """
         Set up the screen object
 
@@ -56,6 +56,8 @@ class Screen(object):
         :param bool is_display: Whether or not this screen should be used to display lyrics
         :param float device_pixel_ratio: Device pixel ratio of screen
         :param raw_screen: Raw screen (Qt/QScreen) object
+        :param QSize simulated_resolution: Lay slides out as if the display had this resolution, e.g. 1920x1080,
+            and shrink them to fit the display window. Used to mock up a real projector in a small window.
         """
         self.number = int(number)
         self.geometry = geometry
@@ -64,6 +66,7 @@ class Screen(object):
         self.is_display = is_display
         self.device_pixel_ratio = device_pixel_ratio
         self.raw_screen = raw_screen
+        self.simulated_resolution = simulated_resolution
 
     def __str__(self):
         """
@@ -96,6 +99,24 @@ class Screen(object):
         else:
             return self.geometry
 
+    @property
+    def render_size(self):
+        """
+        The size slides are laid out at: the simulated resolution if there is one, otherwise the display size
+        """
+        if self.simulated_resolution:
+            return QtCore.QSize(self.simulated_resolution)
+        return self.display_geometry.size()
+
+    @property
+    def display_scale(self):
+        """
+        How much the live display shrinks slides to fit its window: 1 unless a resolution is simulated
+        """
+        if not self.simulated_resolution or not self.simulated_resolution.width():
+            return 1
+        return self.display_geometry.width() / self.simulated_resolution.width()
+
     @classmethod
     def from_dict(cls, screen_dict):
         """
@@ -112,6 +133,9 @@ class Screen(object):
                                                           screen_dict['custom_geometry']['y'],
                                                           screen_dict['custom_geometry']['width'],
                                                           screen_dict['custom_geometry']['height'])
+        if 'simulated_resolution' in screen_dict:
+            screen_dict['simulated_resolution'] = QtCore.QSize(screen_dict['simulated_resolution']['width'],
+                                                               screen_dict['simulated_resolution']['height'])
         return cls(**screen_dict)
 
     def to_dict(self):
@@ -139,6 +163,11 @@ class Screen(object):
                 'width': self.custom_geometry.width(),
                 'height': self.custom_geometry.height()
             }
+        if self.simulated_resolution is not None:
+            screen_dict['simulated_resolution'] = {
+                'width': self.simulated_resolution.width(),
+                'height': self.simulated_resolution.height()
+            }
         return screen_dict
 
     def update(self, screen_dict):
@@ -162,6 +191,10 @@ class Screen(object):
                                                 screen_dict['custom_geometry']['y'],
                                                 screen_dict['custom_geometry']['width'],
                                                 screen_dict['custom_geometry']['height'])
+        if 'simulated_resolution' in screen_dict:
+            resolution = screen_dict['simulated_resolution']
+            self.simulated_resolution = QtCore.QSize(resolution['width'], resolution['height']) if resolution \
+                else None
 
     def on_geometry_changed(self, geometry, device_pixel_ratio):
         """

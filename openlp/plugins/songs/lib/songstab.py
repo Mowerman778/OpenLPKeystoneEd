@@ -68,6 +68,9 @@ class SongsTab(SettingsTab):
         self.first_slide_mode_layout.addWidget(self.first_slide_mode_combobox)
         self.first_slide_mode_widget.setLayout(self.first_slide_mode_layout)
         self.mode_layout.addWidget(self.first_slide_mode_widget)
+        self.last_slide_credits_check_box = QtWidgets.QCheckBox(self.mode_group_box)
+        self.last_slide_credits_check_box.setObjectName('last_slide_credits_check_box')
+        self.mode_layout.addWidget(self.last_slide_credits_check_box)
         self.left_layout.addWidget(self.mode_group_box)
 
         # Chords group box
@@ -174,6 +177,8 @@ class SongsTab(SettingsTab):
         self.first_slide_mode_combobox.setItemText(0, translate('SongsPlugin.SongsTab', 'None'))
         self.first_slide_mode_combobox.setItemText(1, translate('SongsPlugin.SongsTab', 'Songbook'))
         self.first_slide_mode_combobox.setItemText(2, translate('SongsPlugin.SongsTab', 'Same as Footer'))
+        self.last_slide_credits_check_box.setText(
+            translate('SongsPlugin.SongsTab', 'Add credits slide at end of song (title, authors, copyright)'))
         self.auto_play_check_box.setText(translate('SongsPlugin.SongsTab', 'Auto-play background audio'))
         self.uppercase_check_box.setText(translate('SongsPlugin.SongsTab', 'Apply UPPERCASE globally to all songs.'))
         self.chords_info_label.setText(translate('SongsPlugin.SongsTab', 'If enabled all text between "[" and "]" will '
@@ -312,6 +317,7 @@ class SongsTab(SettingsTab):
         self.footer_edit_box.setPlainText(self.settings.value('songs/footer template'))
         if self.first_slide_mode > 0:
             self.first_slide_mode_combobox.setCurrentIndex(self.first_slide_mode)
+        self.last_slide_credits_check_box.setChecked(self.settings.value('songs/last slide credits'))
 
     def save(self):
         """
@@ -343,6 +349,7 @@ class SongsTab(SettingsTab):
         if self.footer_edit_box.toPlainText() != self.settings.value('songs/footer template'):
             self.settings.setValue('songs/footer template', self.footer_edit_box.toPlainText())
         self.settings.setValue('songs/first slide mode', self.first_slide_mode)
+        self.settings.setValue('songs/last slide credits', self.last_slide_credits_check_box.isChecked())
         if self.tab_visited:
             self.settings_form.register_post_process('songs_config_updated')
         self.tab_visited = False

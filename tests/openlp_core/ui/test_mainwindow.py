@@ -99,7 +99,11 @@ def main_window_reduced(settings, state):
             patch('openlp.core.ui.mainwindow.OpenLPDockWidget'), \
             patch('openlp.core.ui.mainwindow.QtCore.QTimer.singleShot'), \
             patch('openlp.core.ui.mainwindow.QtWidgets.QToolBox'), \
+            patch('openlp.core.ui.mainwindow.LibraryToolBox'), \
+            patch('openlp.core.ui.mainwindow.LibraryBar'), \
+            patch('openlp.core.ui.mainwindow.QtWidgets.QMainWindow.addToolBar'), \
             patch('openlp.core.ui.mainwindow.QtWidgets.QMainWindow.addDockWidget'), \
+            patch('openlp.core.ui.mainwindow.QtWidgets.QMainWindow.splitDockWidget'), \
             patch('openlp.core.ui.mainwindow.ServiceManager'), \
             patch('openlp.core.ui.mainwindow.ThemeManager'), \
             patch('openlp.core.ui.mainwindow.ProjectorManager'), \
@@ -290,6 +294,8 @@ def test_load_settings_position_valid(main_window, settings):
     main_window.control_splitter = MagicMock()
     main_window._live_controller = MagicMock()
     main_window._preview_controller = MagicMock()
+    # show() applies the screen layout, which would move the window
+    main_window.layout_manager = MagicMock()
     # set up a window position and geometry to use in the settings
     main_window.move(QtCore.QPoint(10, 10))
     main_window.resize(1000, 500)
@@ -638,8 +644,8 @@ def test_load_settings_custom_layout(mocked_view_mode, main_window, settings):
     main_window.show()
 
     # THEN:
-    # The default mode should have been called.
-    mocked_view_mode.assert_called_with(True, True, True, False, True, False)
+    # The view mode should match the saved panel settings (the screen layout is applied after this)
+    mocked_view_mode.assert_called_with(True, False, True, False, True, False)
 
 
 @patch('openlp.core.ui.mainwindow.QtWidgets.QWidget.show')

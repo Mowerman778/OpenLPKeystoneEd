@@ -22,6 +22,7 @@
 This is the main window, where all the action happens.
 """
 import json
+import logging
 import shutil
 import webbrowser
 from contextlib import contextmanager
@@ -38,6 +39,7 @@ from openlp.core.common import add_actions
 from openlp.core.common.actions import ActionList, CategoryOrder
 from openlp.core.common.applocation import AppLocation
 from openlp.core.common.i18n import LanguageManager, UiStrings, translate
+from openlp.core.common.keystone import version_history_html
 from openlp.core.common.json import OpenLPJSONDecoder
 from openlp.core.common.mixins import LogMixin, RegistryProperties
 from openlp.core.common.path import create_paths, resolve
@@ -53,6 +55,9 @@ from openlp.core.ui.aboutform import AboutForm
 from openlp.core.ui.firsttimeform import FirstTimeForm
 from openlp.core.ui.formattingtagform import FormattingTagForm
 from openlp.core.ui.icons import UiIcons
+from openlp.core.ui.debugreport import create_debug_report
+from openlp.core.ui.layouts import LayoutManager
+from openlp.core.ui.librarybar import LibraryBar, LibraryToolBox
 from openlp.core.ui.pluginform import PluginForm
 from openlp.core.ui.printserviceform import PrintServiceForm
 from openlp.core.ui.servicemanager import ServiceManager
@@ -142,9 +147,12 @@ class Ui_MainWindow(object):
                                                    UiIcons().box)
         self.media_manager_dock.setStyleSheet(get_library_stylesheet())
         # Create the media toolbox
-        self.media_tool_box = QtWidgets.QToolBox(self.media_manager_dock)
+        self.media_tool_box = LibraryToolBox(self.media_manager_dock)
         self.media_tool_box.setObjectName('media_tool_box')
         self.media_manager_dock.setWidget(self.media_tool_box)
+        # Library buttons under the menu: one click shows just that library
+        self.library_bar = LibraryBar(main_window, self.media_tool_box)
+        main_window.addToolBar(QtCore.Qt.TopToolBarArea, self.library_bar)
         main_window.addDockWidget(QtCore.Qt.LeftDockWidgetArea, self.media_manager_dock)
         # Create the service manager
         self.service_manager_dock = OpenLPDockWidget(main_window, 'service_manager_dock',
@@ -168,6 +176,19 @@ class Ui_MainWindow(object):
         self.projector_manager_dock.setWidget(self.projector_manager_contents)
         self.projector_manager_dock.setVisible(False)
         main_window.addDockWidget(QtCore.Qt.RightDockWidgetArea, self.projector_manager_dock)
+        # Preview and Live are dock panels too, so they can be moved to another monitor. The slide controllers put
+        # their panels into these docks when they initialise. By default they sit side by side, right of the Library.
+        self.preview_dock = OpenLPDockWidget(main_window, 'preview_dock', UiIcons().preview)
+        self.live_dock = OpenLPDockWidget(main_window, 'live_dock', UiIcons().live)
+        main_window.addDockWidget(QtCore.Qt.LeftDockWidgetArea, self.preview_dock)
+        main_window.addDockWidget(QtCore.Qt.LeftDockWidgetArea, self.live_dock)
+        main_window.splitDockWidget(self.media_manager_dock, self.preview_dock, QtCore.Qt.Horizontal)
+        main_window.splitDockWidget(self.preview_dock, self.live_dock, QtCore.Qt.Horizontal)
+        # With every panel in a dock the central area is not needed
+        self.main_content.hide()
+        # Let panels sit side by side or stacked anywhere, e.g. Preview dragged in between Library and Service
+        # (No AnimatedDocks: its drop indicator can be left painted over the Preview/Live web views)
+        main_window.setDockOptions(QtWidgets.QMainWindow.AllowNestedDocks | QtWidgets.QMainWindow.AllowTabbedDocks)
         # Create the menu items
         action_list = ActionList.get_instance()
         action_list.add_category(UiStrings().File, CategoryOrder.standard_menu)
@@ -302,6 +323,14 @@ class Ui_MainWindow(object):
                                               can_shortcuts=True, category=UiStrings().Help,
                                               triggers=self.on_help_clicked)
         self.web_site_item = create_action(main_window, 'webSiteItem', can_shortcuts=True, category=UiStrings().Help)
+        self.version_history_item = create_action(main_window, 'versionHistoryItem', icon=UiIcons().info,
+                                                  category=UiStrings().Help,
+                                                  triggers=self.on_version_history_clicked)
+        self.debug_report_item = create_action(main_window, 'debugReportItem', icon=UiIcons().save,
+                                               category=UiStrings().Help, triggers=self.on_debug_report_clicked)
+        self.debug_logging_item = create_action(main_window, 'debugLoggingItem', category=UiStrings().Help,
+                                                checked=self.settings.value('advanced/debug logging'),
+                                                triggers=self.on_debug_logging_toggled)
         # Shortcuts not connected to buttons or menu entries.
         self.search_shortcut_action = create_action(main_window,
                                                     'searchShortcut', can_shortcuts=True,
@@ -343,7 +372,9 @@ class Ui_MainWindow(object):
         add_actions(self.tools_menu, (self.tools_open_data_folder, None))
         add_actions(self.tools_menu, (self.tools_first_time_wizard, None))
         add_actions(self.tools_menu, [self.update_theme_images])
-        add_actions(self.help_menu, (self.user_manual_item, None, self.web_site_item, self.about_item))
+        add_actions(self.help_menu, (self.user_manual_item, None, self.web_site_item, None,
+                                     self.version_history_item, self.debug_report_item, self.debug_logging_item,
+                                     None, self.about_item))
         add_actions(self.menu_bar, (self.file_menu.menuAction(), self.view_menu.menuAction(),
                     self.tools_menu.menuAction(), self.settings_menu.menuAction(), self.help_menu.menuAction()))
         add_actions(self, [self.search_shortcut_action])
@@ -378,6 +409,8 @@ class Ui_MainWindow(object):
         self.service_manager_dock.setWindowTitle(translate('OpenLP.MainWindow', 'Service'))
         self.theme_manager_dock.setWindowTitle(translate('OpenLP.MainWindow', 'Themes'))
         self.projector_manager_dock.setWindowTitle(translate('OpenLP.MainWindow', 'Projector Controller'))
+        self.preview_dock.setWindowTitle(UiStrings().Preview)
+        self.live_dock.setWindowTitle(UiStrings().Live)
         self.file_new_item.setText(translate('OpenLP.MainWindow', '&New Service'))
         self.file_new_item.setToolTip(UiStrings().NewService)
         self.file_new_item.setStatusTip(UiStrings().CreateService)
@@ -444,6 +477,15 @@ class Ui_MainWindow(object):
         self.search_shortcut_action.setToolTip(
             translate('OpenLP.MainWindow', 'Jump to the search box of the current active plugin.'))
         self.web_site_item.setText(translate('OpenLP.MainWindow', '&Web Site'))
+        self.version_history_item.setText(translate('OpenLP.MainWindow', '&Version History...'))
+        self.version_history_item.setStatusTip(translate('OpenLP.MainWindow', 'See which version you have and what '
+                                                                              'changed in each version'))
+        self.debug_report_item.setText(translate('OpenLP.MainWindow', 'Create &Debug Report...'))
+        self.debug_report_item.setStatusTip(translate('OpenLP.MainWindow', 'Save logs and system details in one file '
+                                                                           'to send when reporting a problem'))
+        self.debug_logging_item.setText(translate('OpenLP.MainWindow', 'Detailed (Debug) &Logging'))
+        self.debug_logging_item.setStatusTip(translate('OpenLP.MainWindow', 'Write much more detail to the log, to '
+                                                                            'help track down a problem'))
         for item in self.language_group.actions():
             item.setText(item.objectName())
             item.setStatusTip(translate('OpenLP.MainWindow',
@@ -496,6 +538,8 @@ class MainWindow(QtWidgets.QMainWindow, Ui_MainWindow, LogMixin, RegistryPropert
         self.setup_ui(self)
         # Define the media Dock Manager
         self.media_dock_manager = MediaDockManager(self.media_tool_box)
+        # Named screen layouts and Layout Setup Mode
+        self.layout_manager = LayoutManager(self)
         # Load settings after setup_ui so default UI sizes are overwritten
         # Once settings are loaded update the menu with the recent files.
         self.update_recent_files_menu()
@@ -505,6 +549,8 @@ class MainWindow(QtWidgets.QMainWindow, Ui_MainWindow, LogMixin, RegistryPropert
         self.service_manager_dock.visibilityChanged.connect(self.toggle_service_manager)
         self.theme_manager_dock.visibilityChanged.connect(self.toggle_theme_manager)
         self.projector_manager_dock.visibilityChanged.connect(self.toggle_projector_manager)
+        self.preview_dock.visibilityChanged.connect(self.toggle_preview_dock)
+        self.live_dock.visibilityChanged.connect(self.toggle_live_dock)
         self.import_theme_item.triggered.connect(self.theme_manager_contents.on_import_theme)
         self.export_theme_item.triggered.connect(self.theme_manager_contents.on_export_theme)
         self.web_site_item.triggered.connect(self.on_help_web_site_clicked)
@@ -656,16 +702,6 @@ class MainWindow(QtWidgets.QMainWindow, Ui_MainWindow, LogMixin, RegistryPropert
         """
         Show the main form, as well as the display form
         """
-        QtWidgets.QWidget.show(self)
-        self.activateWindow()
-        # We have -disable-web-security added by our code.
-        # If a file is passed in we will have that as well so count of 2
-        # If not we need to see if we want to use the previous file.so count of 1
-        self.log_info(self.application.args)
-        if self.application.args and len(self.application.args) > 1:
-            self.open_cmd_line_files(self.application.args)
-        elif self.settings.value('core/auto open'):
-            self.service_manager_contents.load_last_file()
         # This will store currently used layout preset so it remains enabled on next startup.
         # If any panel is enabled/disabled after preset is set, this setting is not saved.
         view_mode = self.settings.value('core/view mode')
@@ -689,6 +725,19 @@ class MainWindow(QtWidgets.QMainWindow, Ui_MainWindow, LogMixin, RegistryPropert
                 self.settings.value('user interface/live panel'),
                 self.settings.value('user interface/show projectors')
             )
+        # Arrange the panels for however many monitors are connected (this also locks them). Done before the window
+        # first appears, so the Preview and Live web views are never moved while on screen.
+        self.layout_manager.apply_startup_layout()
+        QtWidgets.QWidget.show(self)
+        self.activateWindow()
+        # We have -disable-web-security added by our code.
+        # If a file is passed in we will have that as well so count of 2
+        # If not we need to see if we want to use the previous file.so count of 1
+        self.log_info(self.application.args)
+        if self.application.args and len(self.application.args) > 1:
+            self.open_cmd_line_files(self.application.args)
+        elif self.settings.value('core/auto open'):
+            self.service_manager_contents.load_last_file()
 
     def first_time(self):
         """
@@ -800,6 +849,52 @@ class MainWindow(QtWidgets.QMainWindow, Ui_MainWindow, LogMixin, RegistryPropert
         Load the OpenLP website
         """
         webbrowser.open_new('https://openlp.org/')
+
+    def on_version_history_clicked(self):
+        """
+        Show the Keystone version and what changed in each version
+        """
+        dialog = QtWidgets.QDialog(self, QtCore.Qt.WindowSystemMenuHint | QtCore.Qt.WindowTitleHint |
+                                   QtCore.Qt.WindowCloseButtonHint)
+        dialog.setWindowTitle(translate('OpenLP.MainWindow', 'Version History'))
+        dialog.resize(560, 480)
+        layout = QtWidgets.QVBoxLayout(dialog)
+        browser = QtWidgets.QTextBrowser(dialog)
+        browser.setHtml(version_history_html())
+        layout.addWidget(browser)
+        buttons = QtWidgets.QDialogButtonBox(QtWidgets.QDialogButtonBox.Close, dialog)
+        buttons.rejected.connect(dialog.reject)
+        layout.addWidget(buttons)
+        dialog.exec()
+
+    def on_debug_report_clicked(self):
+        """
+        Save a debug report on the Desktop and show the user where it is
+        """
+        desktop = QtCore.QStandardPaths.writableLocation(QtCore.QStandardPaths.DesktopLocation)
+        try:
+            report_path = create_debug_report(Path(desktop) if desktop else Path.home())
+        except OSError as error:
+            self.log_exception('Could not create the debug report')
+            QtWidgets.QMessageBox.critical(self, translate('OpenLP.MainWindow', 'Debug Report'),
+                                           translate('OpenLP.MainWindow', 'The debug report could not be saved: '
+                                                                          '{error}').format(error=error))
+            return
+        message = translate('OpenLP.MainWindow', 'The debug report was saved as:\n\n{path}\n\nPasswords are not '
+                                                 'included. Attach this file when reporting a problem.'
+                            ).format(path=report_path)
+        if not self.settings.value('advanced/debug logging'):
+            message += '\n\n' + translate('OpenLP.MainWindow', 'Tip: turn on Help > Detailed (Debug) Logging, '
+                                                               'restart OpenLP and repeat the problem, then create '
+                                                               'the report again for much more detail.')
+        QtWidgets.QMessageBox.information(self, translate('OpenLP.MainWindow', 'Debug Report'), message)
+
+    def on_debug_logging_toggled(self, checked: bool):
+        """
+        Turn detailed logging on or off, now and the next time OpenLP starts
+        """
+        self.settings.setValue('advanced/debug logging', checked)
+        logging.getLogger().setLevel(logging.DEBUG if checked else logging.WARNING)
 
     def on_help_clicked(self):
         """
@@ -1043,7 +1138,7 @@ class MainWindow(QtWidgets.QMainWindow, Ui_MainWindow, LogMixin, RegistryPropert
                                                   QtWidgets.QMessageBox.StandardButtons(QtWidgets.QMessageBox.Ok))
             self.screen_updating_lock.acquire()
             self.application.set_busy_cursor()
-            self.renderer.resize(self.live_controller.screens.current.display_geometry.size())
+            self.renderer.resize(self.live_controller.screens.current.render_size)
             self.preview_controller.screen_size_changed()
             self.live_controller.setup_displays()
             self.live_controller.screen_size_changed()
@@ -1233,20 +1328,41 @@ class MainWindow(QtWidgets.QMainWindow, Ui_MainWindow, LogMixin, RegistryPropert
                 False - Hidden
 
         """
-        self.preview_controller.panel.setVisible(is_visible)
+        self.preview_dock.setVisible(is_visible)
         self.settings.setValue('user interface/preview panel', is_visible)
         self.view_preview_panel.setChecked(is_visible)
         self.settings.setValue('user interface/is preset layout', False)
+
+    def layout_docks(self) -> list:
+        """
+        All the dock panels that make up a screen layout
+        """
+        return [self.media_manager_dock, self.preview_dock, self.live_dock, self.service_manager_dock,
+                self.theme_manager_dock, self.projector_manager_dock]
+
+    def toggle_preview_dock(self):
+        """
+        Keep the View menu in step when the Preview panel is closed with its own close button
+        """
+        self.view_preview_panel.setChecked(self.preview_dock.isVisible())
+
+    def toggle_live_dock(self):
+        """
+        Keep the View menu in step when the Live panel is closed with its own close button
+        """
+        self.view_live_panel.setChecked(self.live_dock.isVisible())
 
     def set_lock_panel(self, is_locked: bool):
         """
         Sets the ability to stop the toolbars being changed.
         """
+        # Preview and Live have their own headers, so like the original OpenLP they only get a title bar (to drag
+        # them by) while the panels are unlocked
+        for dock in (self.preview_dock, self.live_dock):
+            dock.setTitleBarWidget(QtWidgets.QWidget() if is_locked else None)
         if is_locked:
-            self.theme_manager_dock.setFeatures(QtWidgets.QDockWidget.DockWidgetFeature.NoDockWidgetFeatures)
-            self.service_manager_dock.setFeatures(QtWidgets.QDockWidget.DockWidgetFeature.NoDockWidgetFeatures)
-            self.media_manager_dock.setFeatures(QtWidgets.QDockWidget.DockWidgetFeature.NoDockWidgetFeatures)
-            self.projector_manager_dock.setFeatures(QtWidgets.QDockWidget.DockWidgetFeature.NoDockWidgetFeatures)
+            for dock in self.layout_docks():
+                dock.setFeatures(QtWidgets.QDockWidget.DockWidgetFeature.NoDockWidgetFeatures)
             self.view_mode_menu.setEnabled(False)
             self.view_media_manager_item.setEnabled(False)
             self.view_service_manager_item.setEnabled(False)
@@ -1255,10 +1371,8 @@ class MainWindow(QtWidgets.QMainWindow, Ui_MainWindow, LogMixin, RegistryPropert
             self.view_preview_panel.setEnabled(False)
             self.view_live_panel.setEnabled(False)
         else:
-            self.theme_manager_dock.setFeatures(QtWidgets.QDockWidget.DockWidgetFeature.AllDockWidgetFeatures)
-            self.service_manager_dock.setFeatures(QtWidgets.QDockWidget.DockWidgetFeature.AllDockWidgetFeatures)
-            self.media_manager_dock.setFeatures(QtWidgets.QDockWidget.DockWidgetFeature.AllDockWidgetFeatures)
-            self.projector_manager_dock.setFeatures(QtWidgets.QDockWidget.DockWidgetFeature.AllDockWidgetFeatures)
+            for dock in self.layout_docks():
+                dock.setFeatures(QtWidgets.QDockWidget.DockWidgetFeature.AllDockWidgetFeatures)
             self.view_mode_menu.setEnabled(True)
             self.view_media_manager_item.setEnabled(True)
             self.view_service_manager_item.setEnabled(True)
@@ -1276,7 +1390,7 @@ class MainWindow(QtWidgets.QMainWindow, Ui_MainWindow, LogMixin, RegistryPropert
                 True - Visible
                 False - Hidden
         """
-        self.live_controller.panel.setVisible(is_visible)
+        self.live_dock.setVisible(is_visible)
         self.settings.setValue('user interface/live panel', is_visible)
         self.view_live_panel.setChecked(is_visible)
         self.settings.setValue('user interface/is preset layout', False)

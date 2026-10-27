@@ -893,6 +893,7 @@ def test_process_item(mocked_execute: MagicMock, registry: Registry, state_media
     Registry().register('media_controller', MagicMock())
     Registry().register('application', MagicMock())
     slide_controller = SlideController(None)
+    slide_controller.panel = MagicMock()
     slide_controller.service_item = mocked_pres_item
     slide_controller.is_live = False
     slide_controller.preview_widget = MagicMock()
@@ -948,6 +949,7 @@ def test_process_item_transition(mocked_execute: MagicMock, registry: Registry, 
     Registry().register('application', MagicMock())
     Registry().register('settings', mocked_settings)
     slide_controller = SlideController(None)
+    slide_controller.panel = MagicMock()
     slide_controller.service_item = mocked_pres_item
     slide_controller.is_live = True
     slide_controller._reset_blank = MagicMock()
@@ -1010,6 +1012,7 @@ def test_process_item_text(mocked_execute: MagicMock, registry: Registry, state_
     Registry().register('application', MagicMock())
     Registry().register('settings', mocked_settings)
     slide_controller = SlideController(None)
+    slide_controller.panel = MagicMock()
     slide_controller.service_item = None
     slide_controller.is_live = True
     slide_controller._reset_blank = MagicMock()
@@ -1070,6 +1073,7 @@ def test_process_item_song_vlc(mocked_execute: MagicMock, registry: Registry, st
     Registry().register('media_controller', MagicMock())
     Registry().register('application', MagicMock())
     slide_controller = SlideController(None)
+    slide_controller.panel = MagicMock()
     slide_controller.service_item = mocked_pres_item
     slide_controller.is_live = False
     slide_controller.preview_widget = MagicMock()
@@ -1119,6 +1123,7 @@ def test_process_item_song_no_vlc(mocked_execute: MagicMock, registry: Registry,
     Registry().register('media_controller', MagicMock())
     Registry().register('application', MagicMock())
     slide_controller = SlideController(None)
+    slide_controller.panel = MagicMock()
     slide_controller.service_item = mocked_pres_item
     slide_controller.is_live = False
     slide_controller.preview_widget = MagicMock()
@@ -1167,6 +1172,7 @@ def test_process_item_is_reloading_wont_change_display_hide_mode(mocked_execute:
     Registry().register('application', MagicMock())
     Registry().register('settings', mocked_settings)
     slide_controller = SlideController(None)
+    slide_controller.panel = MagicMock()
     slide_controller.service_item = None
     slide_controller.is_live = True
     slide_controller._reset_blank = MagicMock()
@@ -1222,6 +1228,7 @@ def test_process_item_provides_own_theme(mocked_execute: MagicMock, registry: Re
     Registry().register('media_controller', MagicMock())
     Registry().register('application', MagicMock())
     slide_controller = SlideController(None)
+    slide_controller.panel = MagicMock()
     slide_controller.service_item = mocked_pres_item
     slide_controller.is_live = False
     slide_controller.preview_widget = MagicMock()

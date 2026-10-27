@@ -221,8 +221,30 @@ def test_load(mocked_normcase, mocked_get_vlc, settings):
     # THEN: The video should be loaded
     mocked_normcase.assert_called_with(media_path)
     mocked_controller.vlc_instance.media_player_new.assert_called()
-    mocked_controller.vlc_media.add_media.assert_called_with(media_path)
+    mocked_controller.vlc_instance.media_new.assert_called_with(media_path)
+    mocked_controller.vlc_media.add_media.assert_called_with(mocked_controller.vlc_instance.media_new.return_value)
+    mocked_controller.vlc_instance.media_new.return_value.add_option.assert_not_called()
     assert result is True
+
+
+@patch('openlp.core.ui.media.vlcplayerpl.get_vlc')
+@patch('openlp.core.ui.media.vlcplayerpl.os.path.normcase')
+def test_load_applies_audio_delay(mocked_normcase, mocked_get_vlc, settings):
+    """
+    Test that the audio delay (lip sync) setting is added to the media as a VLC option
+    """
+    # GIVEN: An audio delay of 250ms
+    settings.setValue('media/audio delay', 250)
+    mocked_normcase.side_effect = lambda x: x
+    mocked_controller = MagicMock()
+    mocked_controller.media_info.media_type = MediaType.Video
+    vlc_player = VlcPlayerPL(None)
+
+    # WHEN: A video is loaded into VLC
+    vlc_player.load(mocked_controller, MagicMock(), '/path/to/media.mp4')
+
+    # THEN: The media should carry the audio-desync option
+    mocked_controller.vlc_instance.media_new.return_value.add_option.assert_called_once_with('audio-desync=250')
 
 
 @patch('openlp.core.ui.media.vlcplayerpl.get_vlc')

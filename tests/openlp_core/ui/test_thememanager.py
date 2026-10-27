@@ -497,9 +497,11 @@ def test_bootstrap_post(mocked_rename_form, mocked_theme_form, theme_manager):
     theme_manager.theme_path = MagicMock()
     theme_manager.load_themes = MagicMock()
     theme_manager.upgrade_themes = MagicMock()
+    theme_manager.load_first_time_themes = MagicMock()
 
     # WHEN:
-    with patch('openlp.core.ui.thememanager.ThemeProgressForm'):
+    with patch('openlp.core.ui.thememanager.ThemeProgressForm'), \
+            patch('openlp.core.ui.thememanager.AppLocation.get_files', return_value=[]):
         theme_manager.bootstrap_post_set_up()
 
     # THEN:
@@ -507,6 +509,31 @@ def test_bootstrap_post(mocked_rename_form, mocked_theme_form, theme_manager):
     assert theme_manager.theme_form is not None
     assert theme_manager.file_rename_form is not None
     theme_manager.upgrade_themes.assert_called_once()
+    theme_manager.load_themes.assert_called_once()
+
+
+@patch('openlp.core.ui.thememanager.ThemeForm')
+@patch('openlp.core.ui.thememanager.FileRenameForm')
+@pytest.mark.parametrize('leftover_packages, expect_import', [([Path('BlueBurst.otz')], True), ([], False)])
+def test_bootstrap_post_imports_leftover_theme_packages(mocked_rename_form, mocked_theme_form, leftover_packages,
+                                                        expect_import, theme_manager):
+    """
+    Test theme packages left behind by an interrupted First Time Wizard are imported at startup
+    """
+    # GIVEN: A theme folder that may still hold a downloaded theme package
+    theme_manager.toolbar = MagicMock()
+    theme_manager.theme_path = MagicMock()
+    theme_manager.load_themes = MagicMock()
+    theme_manager.upgrade_themes = MagicMock()
+    theme_manager.load_first_time_themes = MagicMock()
+
+    # WHEN: OpenLP starts
+    with patch('openlp.core.ui.thememanager.ThemeProgressForm'), \
+            patch('openlp.core.ui.thememanager.AppLocation.get_files', return_value=leftover_packages):
+        theme_manager.bootstrap_post_set_up()
+
+    # THEN: The packages are imported only if there are any, before the theme list is loaded
+    assert theme_manager.load_first_time_themes.called is expect_import
     theme_manager.load_themes.assert_called_once()
 
 

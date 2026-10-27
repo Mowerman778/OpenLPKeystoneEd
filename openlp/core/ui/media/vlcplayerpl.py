@@ -37,7 +37,7 @@ from openlp.core.lib.ui import critical_error_message_box
 from openlp.core.ui.slidecontroller import SlideController
 from openlp.core.ui.media import MediaState, VlCState, get_volume
 from openlp.core.ui.media.mediaplayer import MediaPlayer
-from openlp.core.ui.media.vlcplayer import get_vlc
+from openlp.core.ui.media.vlcplayer import add_audio_delay, get_vlc
 
 log = logging.getLogger(__name__)
 
@@ -152,7 +152,9 @@ class VlcPlayerPL(MediaPlayer, LogMixin):
         self.add_display(controller)
         path = os.path.normcase(file)
         controller.vlc_media = controller.vlc_instance.media_list_new()
-        controller.vlc_media.add_media(path)
+        media = controller.vlc_instance.media_new(path)
+        add_audio_delay(media, self.settings)
+        controller.vlc_media.add_media(media)
         controller.vlc_media_listPlayer = controller.vlc_instance.media_list_player_new()
         controller.vlc_media_listPlayer.set_media_player(controller.vlc_media_player)
         controller.vlc_media_listPlayer.set_media_list(controller.vlc_media)

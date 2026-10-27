@@ -23,9 +23,12 @@ The About dialog.
 """
 import webbrowser
 
-from PyQt5 import QtCore, QtWidgets
+import html
+
+from PyQt5 import QtCore, QtGui, QtWidgets
 
 from openlp.core.common.i18n import translate
+from openlp.core.common.keystone import version_label
 from openlp.core.version import get_version
 
 from .aboutdialog import UiAboutDialog
@@ -59,6 +62,10 @@ class AboutForm(QtWidgets.QDialog, UiAboutDialog):
             build_text = ''
         about_text = about_text.replace('{revision}', build_text)
         self.about_text_edit.setHtml(about_text)
+        # Keystone's version goes first, on its own line
+        cursor = QtGui.QTextCursor(self.about_text_edit.document())
+        cursor.movePosition(QtGui.QTextCursor.Start)
+        cursor.insertHtml('<b>{label}</b><br>'.format(label=html.escape(version_label())))
         self.contribute_button.clicked.connect(self.on_contribute_button_clicked)
 
     def on_contribute_button_clicked(self):

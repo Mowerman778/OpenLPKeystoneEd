@@ -24,11 +24,12 @@ Package to test the openlp.core.ui.firsttimeform package.
 import datetime
 from unittest.mock import patch
 
+from openlp.core.common.keystone import version_label
 from openlp.core.ui.aboutform import AboutForm
 
 
 @patch('openlp.core.ui.aboutform.webbrowser')
-def test_on_contribute_button_clicked(mocked_webbrowser):
+def test_on_contribute_button_clicked(mocked_webbrowser, settings):
     """
     Test that clicking on the "Volunteer" button opens a web page.
     """
@@ -43,7 +44,7 @@ def test_on_contribute_button_clicked(mocked_webbrowser):
 
 
 @patch('openlp.core.ui.aboutform.get_version')
-def test_about_form_build_number(mocked_get_version):
+def test_about_form_build_number(mocked_get_version, settings):
     """
     Test that the build number is added to the about form
     """
@@ -58,7 +59,7 @@ def test_about_form_build_number(mocked_get_version):
         "The build number should be set correctly"
 
 
-def test_about_form_date():
+def test_about_form_date(settings):
     """
     Test that the copyright date is included correctly
     """
@@ -71,3 +72,15 @@ def test_about_form_date():
 
     # THEN: The date should be in the text twice.
     assert about_text.count(date_string, 0) == 1, "The text string should be added twice to the license string"
+
+
+def test_about_form_keystone_version(settings):
+    """
+    Test that Keystone's version is shown first in the About box
+    """
+    # GIVEN / WHEN: The about form is created
+    about_form = AboutForm(None)
+
+    # THEN: The first line is Keystone's version
+    first_line = about_form.about_text_edit.toPlainText().splitlines()[0]
+    assert first_line == version_label()

@@ -192,6 +192,10 @@ class ThemeManager(QtWidgets.QWidget, RegistryBase, Ui_ThemeManager, LogMixin, R
         self.theme_form.path = self.theme_path
         self.file_rename_form = FileRenameForm()
         self.upgrade_themes()  # TODO: Can be removed when upgrade path from OpenLP 2.4 no longer needed
+        # Theme packages downloaded by a First Time Wizard that was interrupted (e.g. OpenLP crashed) were never
+        # unpacked, leaving an empty theme list: import them now
+        if AppLocation.get_files('themes', '.otz'):
+            self.load_first_time_themes()
         self.load_themes()
 
     def load_settings(self):

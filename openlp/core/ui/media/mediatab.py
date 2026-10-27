@@ -61,6 +61,21 @@ class MediaTab(SettingsTab):
         self.auto_start_check_box = QtWidgets.QCheckBox(self.live_media_group_box)
         self.auto_start_check_box.setObjectName('auto_start_check_box')
         self.media_layout.addWidget(self.auto_start_check_box)
+        self.audio_delay_layout = QtWidgets.QHBoxLayout()
+        self.audio_delay_label = QtWidgets.QLabel(self.live_media_group_box)
+        self.audio_delay_label.setObjectName('audio_delay_label')
+        self.audio_delay_spin_box = QtWidgets.QSpinBox(self.live_media_group_box)
+        self.audio_delay_spin_box.setObjectName('audio_delay_spin_box')
+        self.audio_delay_spin_box.setRange(-5000, 5000)
+        self.audio_delay_spin_box.setSingleStep(50)
+        self.audio_delay_layout.addWidget(self.audio_delay_label)
+        self.audio_delay_layout.addWidget(self.audio_delay_spin_box)
+        self.audio_delay_layout.addStretch()
+        self.media_layout.addLayout(self.audio_delay_layout)
+        self.audio_delay_help_label = QtWidgets.QLabel(self.live_media_group_box)
+        self.audio_delay_help_label.setObjectName('audio_delay_help_label')
+        self.audio_delay_help_label.setWordWrap(True)
+        self.media_layout.addWidget(self.audio_delay_help_label)
         self.left_layout.addWidget(self.live_media_group_box)
         self.vlc_arguments_group_box = QtWidgets.QGroupBox(self.left_column)
         self.vlc_arguments_group_box.setObjectName('vlc_arguments_group_box')
@@ -84,6 +99,11 @@ class MediaTab(SettingsTab):
         self.vlc_arguments_group_box.setTitle(translate('MediaPlugin.MediaTab', 'VLC (requires restart)'))
         self.vlc_arguments_label.setText(translate('MediaPlugin.MediaTab', 'Extra arguments:'))
         self.auto_start_check_box.setText(translate('MediaPlugin.MediaTab', 'Start Live items automatically'))
+        self.audio_delay_label.setText(translate('MediaPlugin.MediaTab', 'Audio delay (lip sync):'))
+        self.audio_delay_spin_box.setSuffix(translate('MediaPlugin.MediaTab', ' ms'))
+        self.audio_delay_help_label.setText(
+            translate('MediaPlugin.MediaTab', 'If the sound is ahead of the picture, increase this. If the sound '
+                                              'lags behind, use a negative value. Applies to the next video played.'))
 
     def load(self):
         """
@@ -91,6 +111,7 @@ class MediaTab(SettingsTab):
         """
         self.auto_start_check_box.setChecked(self.settings.value('media/media auto start'))
         self.vlc_arguments_edit.setText(self.settings.value('media/vlc arguments'))
+        self.audio_delay_spin_box.setValue(self.settings.value('media/audio delay'))
 
     def save(self):
         """
@@ -100,6 +121,7 @@ class MediaTab(SettingsTab):
         if self.settings.value(setting_key) != self.auto_start_check_box.checkState():
             self.settings.setValue(setting_key, self.auto_start_check_box.checkState())
         self.settings.setValue('media/vlc arguments', self.vlc_arguments_edit.text())
+        self.settings.setValue('media/audio delay', self.audio_delay_spin_box.value())
 
     def post_set_up(self, post_update=False):
         """

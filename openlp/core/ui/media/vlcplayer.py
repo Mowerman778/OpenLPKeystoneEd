@@ -46,6 +46,19 @@ log = logging.getLogger(__name__)
 STATE_WAIT_TIME = 60
 
 
+def add_audio_delay(media, settings) -> None:
+    """
+    Apply the user's audio delay (lip-sync correction) to a VLC media before it is played.
+    Positive values make the audio later, negative values make it earlier.
+
+    :param media: The VLC media to apply the delay to
+    :param settings: The OpenLP settings
+    """
+    delay = settings.value('media/audio delay')
+    if delay:
+        media.add_option(f'audio-desync={int(delay)}')
+
+
 def get_vlc():
     """
     In order to make this module more testable, we have to wrap the VLC import inside a method. We do this so that we
@@ -192,6 +205,7 @@ class VlcPlayer(MediaPlayer, LogMixin):
             self.log_debug(f"vlc dvd load: {dvd_location}")
             controller.vlc_media.add_option(f"start-time={int(controller.media_info.start_time // 1000)}")
             controller.vlc_media.add_option(f"stop-time={int(controller.media_info.end_time // 1000)}")
+            add_audio_delay(controller.vlc_media, self.settings)
             controller.vlc_media_player.set_media(controller.vlc_media)
             controller.vlc_media_player.play()
             # Wait for media to start playing. In this case VLC returns an error.
@@ -207,6 +221,7 @@ class VlcPlayer(MediaPlayer, LogMixin):
             # We must be Streaming
             controller.vlc_media = controller.vlc_instance.media_new_location(file[0])
             controller.vlc_media.add_options(file[1])
+            add_audio_delay(controller.vlc_media, self.settings)
             controller.vlc_media_player.set_media(controller.vlc_media)
         # parse the metadata of the file
         controller.vlc_media.parse()
