@@ -35,12 +35,15 @@ from openlp.core.common.i18n import translate
 from openlp.core.common.mixins import RegistryProperties
 from openlp.core.common.registry import Registry
 from openlp.core.display.screens import ScreenList
+from openlp.core.ui.slidecontroller import SLIDE_LIST_RIGHT, SLIDE_LIST_TOP
 
 log = logging.getLogger(__name__)
 
 ONE_MONITOR_DEFAULT = '1 Monitor Default'
 TWO_MONITOR_DEFAULT = '2 Monitor Default'
 BUILT_IN_LAYOUTS = (ONE_MONITOR_DEFAULT, TWO_MONITOR_DEFAULT)
+# Slide list positions in the Preview and Live panels, in the order shown in Layout Setup Mode
+LIST_POSITIONS = (SLIDE_LIST_TOP, SLIDE_LIST_RIGHT)
 
 
 def operator_screens():
@@ -146,6 +149,28 @@ class LayoutManager(QtCore.QObject, RegistryProperties):
         self.setup_save_as_button = QtWidgets.QPushButton(self.setup_bar)
         self.setup_save_as_button.clicked.connect(self.on_setup_save_as_clicked)
         self.setup_bar.addWidget(self.setup_save_as_button)
+        # Where the slide list sits in the Preview and Live panels
+        self.preview_list_label = QtWidgets.QLabel(self.setup_bar)
+        self.preview_list_label.setContentsMargins(16, 0, 4, 0)
+        self.setup_bar.addWidget(self.preview_list_label)
+        self.preview_list_combo = QtWidgets.QComboBox(self.setup_bar)
+        self.preview_list_combo.setObjectName('preview_list_combo')
+        self.preview_list_combo.addItems(['', ''])
+        self.preview_list_combo.activated.connect(
+            lambda index: self.window.preview_controller.set_slide_list_position(LIST_POSITIONS[index]))
+        self.setup_bar.addWidget(self.preview_list_combo)
+        self.live_list_label = QtWidgets.QLabel(self.setup_bar)
+        self.live_list_label.setContentsMargins(12, 0, 4, 0)
+        self.setup_bar.addWidget(self.live_list_label)
+        self.live_list_combo = QtWidgets.QComboBox(self.setup_bar)
+        self.live_list_combo.setObjectName('live_list_combo')
+        self.live_list_combo.addItems(['', ''])
+        self.live_list_combo.activated.connect(
+            lambda index: self.window.live_controller.set_slide_list_position(LIST_POSITIONS[index]))
+        self.setup_bar.addWidget(self.live_list_combo)
+        spacer = QtWidgets.QWidget(self.setup_bar)
+        spacer.setFixedWidth(16)
+        self.setup_bar.addWidget(spacer)
         self.setup_done_button = QtWidgets.QPushButton(self.setup_bar)
         self.setup_done_button.clicked.connect(self.leave_setup_mode)
         self.setup_bar.addWidget(self.setup_done_button)
@@ -169,6 +194,11 @@ class LayoutManager(QtCore.QObject, RegistryProperties):
         self.setup_save_button.setText(translate('OpenLP.Layouts', 'Save'))
         self.setup_save_as_button.setText(translate('OpenLP.Layouts', 'Save As New Layout...'))
         self.setup_done_button.setText(translate('OpenLP.Layouts', 'Done'))
+        self.preview_list_label.setText(translate('OpenLP.Layouts', 'Preview slide list:'))
+        self.live_list_label.setText(translate('OpenLP.Layouts', 'Live slide list:'))
+        for combo in (self.preview_list_combo, self.live_list_combo):
+            combo.setItemText(0, translate('OpenLP.Layouts', 'Above the picture'))
+            combo.setItemText(1, translate('OpenLP.Layouts', 'Right of the picture'))
 
     def populate_layout_menu(self):
         """
@@ -239,6 +269,8 @@ class LayoutManager(QtCore.QObject, RegistryProperties):
             'state': _encode(state),
             'maximised': main_window.isMaximized(),
             'monitors': operator_monitor_count(),
+            'preview list': main_window.preview_controller.slide_list_position,
+            'live list': main_window.live_controller.slide_list_position,
             'preview splitter': _encode(main_window.preview_controller.splitter.saveState()),
             'live splitter': _encode(main_window.live_controller.splitter.saveState()),
         }
@@ -294,6 +326,10 @@ class LayoutManager(QtCore.QObject, RegistryProperties):
         main_window.restoreState(self.pristine_state)
         for dock in main_window.layout_docks():
             dock.setVisible(dock is not main_window.projector_manager_dock)
+        # Slide lists above the picture, as in the original OpenLP
+        for controller in (main_window.preview_controller, main_window.live_controller):
+            if controller:
+                controller.set_slide_list_position(LIST_POSITIONS[0])
         if two_monitors:
             # Preview and Live side by side, filling the second monitor
             second = screens[1].availableGeometry()
@@ -357,6 +393,8 @@ class LayoutManager(QtCore.QObject, RegistryProperties):
             main_window.restoreGeometry(_decode(data['geometry']))
             main_window.restoreState(_decode(data['state']))
             self.setup_bar.setVisible(self.in_setup_mode())
+            main_window.preview_controller.set_slide_list_position(data.get('preview list', LIST_POSITIONS[0]))
+            main_window.live_controller.set_slide_list_position(data.get('live list', LIST_POSITIONS[0]))
             main_window.preview_controller.splitter.restoreState(_decode(data['preview splitter']))
             main_window.live_controller.splitter.restoreState(_decode(data['live splitter']))
             if data.get('maximised'):
@@ -415,6 +453,10 @@ class LayoutManager(QtCore.QObject, RegistryProperties):
         self.setup_mode_snapshot = self.capture_layout()
         self.window.set_lock_panel(False)
         self.setup_save_button.setEnabled(self.active_layout not in BUILT_IN_LAYOUTS)
+        for combo, controller in ((self.preview_list_combo, self.window.preview_controller),
+                                  (self.live_list_combo, self.window.live_controller)):
+            position = controller.slide_list_position
+            combo.setCurrentIndex(LIST_POSITIONS.index(position) if position in LIST_POSITIONS else 0)
         self.setup_bar.show()
         self.setup_mode_action.setChecked(True)
         self.refresh_layout_combo()
@@ -448,7 +490,7 @@ class LayoutManager(QtCore.QObject, RegistryProperties):
 
     def layout_changed(self):
         current = self.capture_layout()
-        compared = ('state', 'preview splitter', 'live splitter')
+        compared = ('state', 'preview list', 'live list', 'preview splitter', 'live splitter')
         return any(current[key] != self.setup_mode_snapshot[key] for key in compared)
 
     def ask_save_changes(self):

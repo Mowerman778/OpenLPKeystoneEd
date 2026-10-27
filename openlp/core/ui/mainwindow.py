@@ -47,6 +47,8 @@ from openlp.core.common.platform import is_macosx, is_win
 from openlp.core.common.registry import Registry
 from openlp.core.common.settings import Settings
 from openlp.core.display.screens import ScreenList
+from openlp.core.display.simulatedprojector import is_simulating, turn_off as turn_off_simulated_projector, \
+    turn_on as turn_on_simulated_projector
 from openlp.core.lib.plugin import PluginStatus
 from openlp.core.lib.ui import create_action
 from openlp.core.projectors.manager import ProjectorManager
@@ -249,6 +251,10 @@ class Ui_MainWindow(object):
                                                 triggers=self.set_preview_panel_visibility)
         self.view_live_panel = create_action(main_window, 'viewLivePanel', can_shortcuts=True, checked=live_visible,
                                              category=UiStrings().View, triggers=self.set_live_panel_visibility)
+        self.view_simulated_projector = create_action(main_window, 'viewSimulatedProjector',
+                                                      checked=self.settings.value('core/simulated projector'),
+                                                      category=UiStrings().View,
+                                                      triggers=self.on_simulated_projector_toggled)
         self.lock_panel = create_action(main_window, 'lockPanel', can_shortcuts=True, checked=panel_locked,
                                         category=UiStrings().View, triggers=self.set_lock_panel)
         action_list.add_category(UiStrings().ViewMode, CategoryOrder.standard_menu)
@@ -352,7 +358,8 @@ class Ui_MainWindow(object):
         add_actions(self.view_mode_menu, (self.mode_default_item, self.mode_setup_item, self.mode_live_item))
         add_actions(self.view_menu, (self.view_mode_menu.menuAction(), None, self.view_media_manager_item,
                     self.view_projector_manager_item, self.view_service_manager_item, self.view_theme_manager_item,
-                    None, self.view_preview_panel, self.view_live_panel, None, self.lock_panel))
+                    None, self.view_preview_panel, self.view_live_panel, self.view_simulated_projector,
+                    None, self.lock_panel))
         # i18n add Language Actions
         add_actions(self.settings_language_menu, (self.auto_language_item, None))
         add_actions(self.settings_language_menu, self.language_group.actions())
@@ -464,6 +471,10 @@ class Ui_MainWindow(object):
             translate('OpenLP.MainWindow', 'Toggle visibility of the Preview.'))
         self.view_live_panel.setText(translate('OpenLP.MainWindow', 'Li&ve'))
         self.view_live_panel.setToolTip(translate('OpenLP.MainWindow', 'Hide or show Live'))
+        self.view_simulated_projector.setText(translate('OpenLP.MainWindow', 'Simulated &Projector Mode'))
+        self.view_simulated_projector.setStatusTip(
+            translate('OpenLP.MainWindow', 'No projector connected? Show the live output in a movable window, '
+                                           'laid out exactly as on an HD projector.'))
         self.lock_panel.setText(translate('OpenLP.MainWindow', 'L&ock visibility of the panels'))
         self.lock_panel.setStatusTip(translate('OpenLP.MainWindow', 'Lock visibility of the panels.'))
         self.view_live_panel.setStatusTip(translate('OpenLP.MainWindow', 'Toggle visibility of the Live.'))
@@ -849,6 +860,19 @@ class MainWindow(QtWidgets.QMainWindow, Ui_MainWindow, LogMixin, RegistryPropert
         Load the OpenLP website
         """
         webbrowser.open_new('https://openlp.org/')
+
+    def on_simulated_projector_toggled(self, checked: bool):
+        """
+        Turn Simulated Projector Mode on or off, and move the live output there or back
+        """
+        if checked:
+            turn_on_simulated_projector()
+        else:
+            turn_off_simulated_projector()
+        self.view_simulated_projector.setChecked(is_simulating())
+        # This was asked for, so don't warn that the screen setup has changed
+        self.should_show_screen_change_message = False
+        Registry().execute('config_screen_changed')
 
     def on_version_history_clicked(self):
         """

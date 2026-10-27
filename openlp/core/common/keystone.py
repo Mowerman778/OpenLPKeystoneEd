@@ -41,7 +41,9 @@ VERSION_HISTORY = [
         'Media: audio delay (lip sync) setting',
         'Splash screen shows the whole logo, centred',
         'Help menu: Version History, Create Debug Report and Debug Logging',
-        'Testing aid: a small window can stand in for an HD projector (slides laid out at 1920x1080)',
+        'View > Simulated Projector Mode: no projector connected? The live output goes to a movable window, laid '
+        'out exactly as on an HD (1920x1080) projector',
+        'Layout Setup Mode: put the Preview and Live slide lists above or to the right of the picture',
     ]),
 ]
 

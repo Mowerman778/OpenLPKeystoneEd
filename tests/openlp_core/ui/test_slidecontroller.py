@@ -27,7 +27,8 @@ from time import perf_counter
 
 from unittest.mock import MagicMock, patch, sentinel
 
-from PyQt5 import QtCore, QtGui
+import pytest
+from PyQt5 import QtCore, QtGui, QtWidgets
 from pytest import mark
 
 from openlp.core.state import State
@@ -1946,3 +1947,29 @@ def test_close_displays(registry: Registry):
     mocked_display.setParent.assert_called_once_with(None)
     mocked_display.close.assert_called_once()
     assert live_controller.displays == []
+
+
+@pytest.mark.parametrize('position, orientation, first_widget', [
+    ('right', QtCore.Qt.Horizontal, 'preview_frame'),
+    ('top', QtCore.Qt.Vertical, 'controller'),
+    ('nonsense', QtCore.Qt.Vertical, 'controller'),
+])
+def test_set_slide_list_position(position, orientation, first_widget, settings):
+    """
+    Test the slide list can go to the right of the picture (picture first, side by side) or back on top
+    """
+    # GIVEN: A slide controller's splitter with the slide list above the picture
+    slide_controller = SlideController(None)
+    slide_controller.splitter = QtWidgets.QSplitter(QtCore.Qt.Vertical)
+    slide_controller.controller = QtWidgets.QWidget()
+    slide_controller.preview_frame = QtWidgets.QFrame()
+    slide_controller.splitter.addWidget(slide_controller.controller)
+    slide_controller.splitter.addWidget(slide_controller.preview_frame)
+
+    # WHEN: The position is set
+    slide_controller.set_slide_list_position(position)
+
+    # THEN: The splitter is turned and ordered to match
+    assert slide_controller.splitter.orientation() == orientation
+    assert slide_controller.splitter.widget(0) is getattr(slide_controller, first_widget)
+    assert slide_controller.slide_list_position == ('right' if position == 'right' else 'top')

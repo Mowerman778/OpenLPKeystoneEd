@@ -64,10 +64,19 @@ class FakeMainWindow(QtWidgets.QMainWindow):
         self.addDockWidget(QtCore.Qt.LeftDockWidgetArea, self.live_dock)
         self.splitDockWidget(self.media_manager_dock, self.preview_dock, QtCore.Qt.Horizontal)
         self.splitDockWidget(self.preview_dock, self.live_dock, QtCore.Qt.Horizontal)
-        self.preview_controller = MagicMock()
-        self.preview_controller.splitter = QtWidgets.QSplitter()
-        self.live_controller = MagicMock()
-        self.live_controller.splitter = QtWidgets.QSplitter()
+        self.preview_controller = self._fake_controller()
+        self.live_controller = self._fake_controller()
+
+    @staticmethod
+    def _fake_controller():
+        controller = MagicMock()
+        controller.splitter = QtWidgets.QSplitter()
+        controller.slide_list_position = 'top'
+
+        def set_slide_list_position(position):
+            controller.slide_list_position = position
+        controller.set_slide_list_position.side_effect = set_slide_list_position
+        return controller
 
     def layout_docks(self):
         return [self.media_manager_dock, self.preview_dock, self.live_dock, self.service_manager_dock,
@@ -411,3 +420,42 @@ def test_registered_for_screen_changes(manager):
 
 def test_module_constants():
     assert layouts.BUILT_IN_LAYOUTS == (ONE_MONITOR_DEFAULT, TWO_MONITOR_DEFAULT)
+
+
+def test_slide_list_position_saved_in_layout(manager, window, settings):
+    """
+    Test the Preview/Live slide list position is part of a saved layout, and the built-in layouts put it on top
+    """
+    # GIVEN: Live's slide list moved to the right and the layout saved
+    window.live_controller.set_slide_list_position('right')
+    manager.store_layout('Lists right')
+
+    # WHEN: A built-in layout is applied
+    manager.apply_layout(ONE_MONITOR_DEFAULT)
+
+    # THEN: The lists are back on top
+    assert window.live_controller.slide_list_position == 'top'
+
+    # WHEN: The saved layout is applied again
+    manager.apply_layout('Lists right')
+
+    # THEN: Live's list is on the right again, Preview's on top
+    assert window.live_controller.slide_list_position == 'right'
+    assert window.preview_controller.slide_list_position == 'top'
+
+
+def test_setup_mode_slide_list_choice(manager, window):
+    """
+    Test Layout Setup Mode shows the current slide list positions and changing one moves the list and counts as a
+    change to the layout
+    """
+    window.preview_controller.set_slide_list_position('right')
+    manager.active_layout = ONE_MONITOR_DEFAULT
+    manager.enter_setup_mode()
+    assert manager.preview_list_combo.currentIndex() == 1
+    assert manager.live_list_combo.currentIndex() == 0
+
+    manager.live_list_combo.activated.emit(1)
+
+    assert window.live_controller.slide_list_position == 'right'
+    assert manager.layout_changed()

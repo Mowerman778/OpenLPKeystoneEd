@@ -37,6 +37,7 @@ from openlp.core.common.platform import is_win, is_macosx
 from openlp.core.common.registry import Registry
 from openlp.core.common.utils import wait_for
 from openlp.core.display.screens import ScreenList
+from openlp.core.display.simulatedprojector import remember_box
 from openlp.core.ui import HideMode
 
 
@@ -156,6 +157,17 @@ class DisplayWindow(QtWidgets.QWidget, RegistryProperties, LogMixin):
         self._fbo = None
         self.window_title = window_title
         self.setWindowTitle(translate('OpenLP.DisplayWindow', 'Display Window'))
+        # Simulated Projector Mode: a normal, movable window (no close button) instead of a borderless full screen one
+        self.is_simulated_projector = bool(screen and screen.is_display and screen.simulated_resolution)
+        if self.is_simulated_projector:
+            flags = (QtCore.Qt.Window | QtCore.Qt.CustomizeWindowHint | QtCore.Qt.WindowTitleHint |
+                     QtCore.Qt.WindowStaysOnTopHint)
+            self.setWindowTitle(translate('OpenLP.DisplayWindow', 'Simulated Projector (HD 1920x1080)'))
+            self._simulated_screen = screen
+            self._remember_box_timer = QtCore.QTimer(self)
+            self._remember_box_timer.setSingleShot(True)
+            self._remember_box_timer.setInterval(500)
+            self._remember_box_timer.timeout.connect(self._remember_simulated_box)
         self.setWindowFlags(flags)
         self.setAttribute(QtCore.Qt.WA_TranslucentBackground)
         self.setAutoFillBackground(True)
@@ -204,8 +216,37 @@ class DisplayWindow(QtWidgets.QWidget, RegistryProperties, LogMixin):
             self.webview.setContextMenuPolicy(QtCore.Qt.CustomContextMenu)
             self.webview.customContextMenuRequested.connect(self.on_context_menu_requested)
             # Only make visible on single monitor setup if setting enabled.
-            if not start_hidden and (len(ScreenList()) > 1 or self.settings.value('core/display on monitor')):
+            if not start_hidden and self._can_show_on_this_setup():
                 self.show()
+
+    def _can_show_on_this_setup(self):
+        """
+        With one monitor the display only shows if the user asked for it, or it is a simulated projector window
+        """
+        return (len(ScreenList()) > 1 or self.settings.value('core/display on monitor') or
+                getattr(self, 'is_simulated_projector', False))
+
+    def resizeEvent(self, event):
+        """
+        A simulated projector window keeps its 16:9 shape and shrinks or grows the slides with it
+        """
+        super().resizeEvent(event)
+        if getattr(self, 'is_simulated_projector', False) and self.isVisible():
+            width = event.size().width()
+            height = round(width * 9 / 16)
+            if abs(event.size().height() - height) > 1:
+                self.resize(width, height)
+                return
+            self.set_scale(width / self._simulated_screen.simulated_resolution.width())
+            self._remember_box_timer.start()
+
+    def moveEvent(self, event):
+        super().moveEvent(event)
+        if getattr(self, 'is_simulated_projector', False) and self.isVisible():
+            self._remember_box_timer.start()
+
+    def _remember_simulated_box(self):
+        remember_box(self._simulated_screen, self.geometry())
 
     def closeEvent(self, event):
         """
@@ -532,7 +573,7 @@ class DisplayWindow(QtWidgets.QWidget, RegistryProperties, LogMixin):
         """
         if self.is_display:
             # Only make visible on single monitor setup if setting enabled.
-            if len(ScreenList()) == 1 and not self.settings.value('core/display on monitor'):
+            if not self._can_show_on_this_setup():
                 return
         # Aborting setVisible(False) call in case the display modes are changed quickly
         self.display_watcher.unregister_event_listener(TRANSITION_END_EVENT_NAME)
@@ -550,7 +591,7 @@ class DisplayWindow(QtWidgets.QWidget, RegistryProperties, LogMixin):
         log.debug('hide_display mode = {mode:d}'.format(mode=mode))
         if self.is_display:
             # Only make visible on single monitor setup if setting enabled.
-            if len(ScreenList()) == 1 and not self.settings.value('core/display on monitor'):
+            if not self._can_show_on_this_setup():
                 return
         # Aborting setVisible(False) call in case the display modes are changed quickly
         self.display_watcher.unregister_event_listener(TRANSITION_END_EVENT_NAME)

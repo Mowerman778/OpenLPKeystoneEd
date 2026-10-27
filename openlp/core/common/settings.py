@@ -291,6 +291,9 @@ class Settings(QtCore.QSettings):
         # The other display settings (display position and dimensions) are defined in the ScreenList class due to a
         # circular dependency.
         'core/display on monitor': False,
+        'core/simulated projector': False,
+        'core/screens before simulation': {},
+        'core/simulated projector geometry': {},
         'core/override position': False,
         'core/monitor': {},
         'core/application version': '0.0',

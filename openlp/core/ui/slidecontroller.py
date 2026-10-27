@@ -52,6 +52,9 @@ from openlp.core.widgets.views import ListPreviewWidget
 
 # Threshold which has to be trespassed to toggle.
 HIDE_MENU_THRESHOLD = 80
+# Where the slide list sits in the Preview and Live panels
+SLIDE_LIST_TOP = 'top'
+SLIDE_LIST_RIGHT = 'right'
 
 NARROW_MENU = [
     'hide_menu'
@@ -237,6 +240,8 @@ class SlideController(QtWidgets.QWidget, LogMixin, RegistryProperties):
         self.splitter = QtWidgets.QSplitter(self.panel)
         self.splitter.setOrientation(QtCore.Qt.Vertical)
         self.panel_layout.addWidget(self.splitter)
+        # The slide list starts above the picture; screen layouts can move it to the right (set_slide_list_position)
+        self.slide_list_position = SLIDE_LIST_TOP
         # Actual controller section
         self.controller = QtWidgets.QWidget(self.splitter)
         self.controller.setGeometry(QtCore.QRect(0, 0, 100, 536))
@@ -622,6 +627,25 @@ class SlideController(QtWidgets.QWidget, LogMixin, RegistryProperties):
                 else:
                     self.service_manager.next_item()
             self.process_queue_lock.release()
+
+    def set_slide_list_position(self, position):
+        """
+        Put the slide list above the picture ('top', the original layout) or to its right ('right')
+
+        :param str position: 'top' or 'right'
+        """
+        if position == SLIDE_LIST_RIGHT:
+            self.splitter.setOrientation(QtCore.Qt.Horizontal)
+            self.splitter.insertWidget(0, self.preview_frame)
+            total = max(self.splitter.width(), 2)
+            self.splitter.setSizes([total * 60 // 100, total * 40 // 100])
+        else:
+            position = SLIDE_LIST_TOP
+            self.splitter.setOrientation(QtCore.Qt.Vertical)
+            self.splitter.insertWidget(0, self.controller)
+            total = max(self.splitter.height(), 2)
+            self.splitter.setSizes([total // 2, total // 2])
+        self.slide_list_position = position
 
     def screen_size_changed(self):
         """
