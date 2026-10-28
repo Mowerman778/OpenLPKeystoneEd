@@ -174,6 +174,8 @@ class AreaOverlay(QtWidgets.QWidget):
 
     def paintEvent(self, event):
         painter = QtGui.QPainter(self)
+        # Almost invisible, but not fully see-through: Windows passes clicks on see-through pixels to what is below
+        painter.fillRect(self.rect(), QtGui.QColor(0, 0, 0, 1))
         painter.setRenderHint(QtGui.QPainter.Antialiasing)
         order = [area for area in AREAS if area != self.selected] + [self.selected]
         for area in order:
@@ -283,7 +285,13 @@ class ThemeCanvas(QtWidgets.QWidget):
         self.preview = ThemePreviewRenderer(self.preview_holder, window_title='Theme Manager Preview')
         # The display sets itself up as a separate window: make it part of this one
         self.preview.setParent(self.preview_holder, QtCore.Qt.Widget)
+        # The web view draws on top of any widget placed over it, so the boxes are in their own see-through window
+        # that sits over the picture and follows this one around
         self.overlay = AreaOverlay(self, screen_size)
+        self.overlay.setWindowFlags(QtCore.Qt.Tool | QtCore.Qt.FramelessWindowHint |
+                                    QtCore.Qt.NoDropShadowWindowHint)
+        self.overlay.setAttribute(QtCore.Qt.WA_TranslucentBackground)
+        self.overlay.setAttribute(QtCore.Qt.WA_ShowWithoutActivating)
 
     def view_rect(self):
         """
@@ -302,9 +310,23 @@ class ThemeCanvas(QtWidgets.QWidget):
         rect = self.view_rect()
         self.preview_holder.setGeometry(rect)
         self.preview.setGeometry(0, 0, rect.width(), rect.height())
-        self.overlay.setGeometry(rect)
-        self.overlay.raise_()
+        self.place_overlay()
         self.preview.set_scale(rect.width() / self.screen_size.width())
+
+    def place_overlay(self):
+        """
+        Put the boxes' window exactly over the picture
+        """
+        rect = self.view_rect()
+        self.overlay.setGeometry(QtCore.QRect(self.mapToGlobal(rect.topLeft()), rect.size()))
+
+    def show_overlay(self, visible):
+        if visible:
+            self.place_overlay()
+            self.overlay.show()
+            self.overlay.raise_()
+        else:
+            self.overlay.hide()
 
 
 class ThemeDesignerForm(QtWidgets.QDialog, RegistryProperties):
@@ -588,6 +610,29 @@ class ThemeDesignerForm(QtWidgets.QDialog, RegistryProperties):
         label.setWordWrap(True)
         label.setStyleSheet('color: palette(mid);')
         return label
+
+    # ---- Keeping the boxes over the picture ----
+
+    def showEvent(self, event):
+        super().showEvent(event)
+        QtCore.QTimer.singleShot(0, lambda: self.canvas.show_overlay(self.isVisible()))
+
+    def hideEvent(self, event):
+        self.canvas.show_overlay(False)
+        super().hideEvent(event)
+
+    def moveEvent(self, event):
+        super().moveEvent(event)
+        self.canvas.place_overlay()
+
+    def changeEvent(self, event):
+        super().changeEvent(event)
+        if event.type() == QtCore.QEvent.WindowStateChange:
+            self.canvas.show_overlay(self.isVisible() and not self.isMinimized())
+
+    def done(self, result):
+        self.canvas.show_overlay(False)
+        super().done(result)
 
     # ---- Opening and saving ----
 
