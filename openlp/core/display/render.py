@@ -600,14 +600,7 @@ class ThemePreviewRenderer(DisplayWindow, LogMixin):
         # save value for use in format_slide
         self.force_page = force_page
         if not self.force_page:
-            self.set_theme(theme_data, is_sync=True, service_item_type=ServiceItemType.Text)
-            slides = self.format_slide(VERSE, None)
-            verses = dict()
-            verses['title'] = TITLE
-            verses['text'] = render_tags(slides[0])
-            verses['verse'] = 'V1'
-            verses['footer'] = self.generate_footer()
-            self.load_verses([verses], is_sync=True)
+            self.show_sample(theme_data)
             # Wait for a second
             wait_for(lambda: False, timeout=1)
             self.force_page = False
@@ -615,6 +608,21 @@ class ThemePreviewRenderer(DisplayWindow, LogMixin):
                 return self.grab()
         self.force_page = False
         return None
+
+    def show_sample(self, theme_data):
+        """
+        Show a sample verse in this theme, without waiting for it to be drawn
+
+        :param theme_data: The theme to show the sample in.
+        """
+        self.set_theme(theme_data, is_sync=True, service_item_type=ServiceItemType.Text)
+        slides = self.format_slide(VERSE, None)
+        verses = dict()
+        verses['title'] = TITLE
+        verses['text'] = render_tags(slides[0])
+        verses['verse'] = 'V1'
+        verses['footer'] = self.generate_footer()
+        self.load_verses([verses], is_sync=True)
 
     def format_slide(self, text, item):
         """

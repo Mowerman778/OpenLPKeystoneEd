@@ -44,6 +44,7 @@ from openlp.core.lib.ui import MultipleViewModeList, add_list_view_mode_items_to
     critical_error_message_box, set_list_view_mode_toolbar_state
 from openlp.core.ui.filerenameform import FileRenameForm
 from openlp.core.ui.icons import UiIcons
+from openlp.core.ui.themedesigner import ThemeDesignerForm
 from openlp.core.ui.themeform import ThemeForm
 from openlp.core.ui.themeprogressform import ThemeProgressForm
 from openlp.core.widgets.dialogs import FileDialog
@@ -114,6 +115,10 @@ class Ui_ThemeManager(object):
         self.edit_action = create_widget_action(self.menu,
                                                 text=translate('OpenLP.ThemeManager', '&Edit Theme'),
                                                 icon=UiIcons().edit, triggers=self.on_edit_theme)
+        self.classic_edit_action = create_widget_action(self.menu,
+                                                        text=translate('OpenLP.ThemeManager',
+                                                                       'Edit with classic &wizard'),
+                                                        icon=UiIcons().edit, triggers=self.on_edit_theme_classic)
         self.copy_action = create_widget_action(self.menu,
                                                 text=translate('OpenLP.ThemeManager', '&Copy Theme'),
                                                 icon=UiIcons().copy, triggers=self.on_copy_theme)
@@ -346,10 +351,16 @@ class ThemeManager(QtWidgets.QWidget, RegistryBase, Ui_ThemeManager, LogMixin, R
         their customisations.
         :param field:
         """
-        theme = Theme()
-        self.theme_form.theme = theme
-        self.theme_form.exec()
+        self.get_theme_designer().exec(Theme())
         self.load_themes()
+
+    def get_theme_designer(self):
+        """
+        The Theme Manager window, created the first time it is needed
+        """
+        if not getattr(self, 'theme_designer', None):
+            self.theme_designer = ThemeDesignerForm(self)
+        return self.theme_designer
 
     def on_rename_theme(self, field=None):
         """
@@ -412,8 +423,25 @@ class ThemeManager(QtWidgets.QWidget, RegistryBase, Ui_ThemeManager, LogMixin, R
 
     def on_edit_theme(self, field=None):
         """
+        Open the selected theme in the Theme Manager window
+        :param field:
+        """
+        if check_item_selected(self.theme_list_widget,
+                               translate('OpenLP.ThemeManager', 'You must select a theme to edit.')):
+            item = self.theme_list_widget.currentItem()
+            theme = self.get_theme_data(item.data(QtCore.Qt.UserRole))
+            if theme.background_type == 'image' or theme.background_type == 'video':
+                self.old_background_image_path = theme.background_filename
+            designer = self.get_theme_designer()
+            if designer.exec(theme, edit=True):
+                self.renderer.set_theme(designer.theme)
+            self.old_background_image_path = None
+            self.load_themes()
+
+    def on_edit_theme_classic(self, field=None):
+        """
         Loads the settings for the theme that is to be edited and launches the
-        theme editing form so the user can make their changes.
+        classic theme wizard so the user can make their changes.
         :param field:
         """
         if check_item_selected(self.theme_list_widget,

@@ -46,6 +46,7 @@ from openlp.core.ui import HideMode
 def mock_geometry():
     mocked_screen = MagicMock()
     mocked_screen.display_geometry = QtCore.QRect(10, 20, 400, 600)
+    mocked_screen.render_size = QtCore.QSize(400, 600)
     mocked_screenlist = MagicMock()
     mocked_screenlist.current = mocked_screen
     screenlist_patcher = patch('openlp.core.lib.theme.ScreenList', return_value=mocked_screenlist)

@@ -348,7 +348,7 @@ class Theme(object):
         """
         Sets the default header position and size, ignores font_main_override
         """
-        current_screen_geometry = ScreenList().current.display_geometry
+        current_screen_geometry = ScreenList().current.render_size
         self.font_main_x = 10
         self.font_main_y = 0
         self.font_main_width = current_screen_geometry.width() - 20
@@ -358,7 +358,7 @@ class Theme(object):
         """
         Sets the default footer position and size, ignores font_footer_override
         """
-        current_screen_geometry = ScreenList().current.display_geometry
+        current_screen_geometry = ScreenList().current.render_size
         self.font_footer_x = 10
         self.font_footer_y = current_screen_geometry.height() * 9 / 10
         self.font_footer_width = current_screen_geometry.width() - 20
@@ -403,7 +403,7 @@ class Theme(object):
         if self.background_type == 'image':
             image = image_to_data_uri(self.background_filename)
             theme_copy.background_filename = image
-        current_screen_geometry = ScreenList().current.display_geometry
+        current_screen_geometry = ScreenList().current.render_size
         theme_copy.display_size_width = current_screen_geometry.width()
         theme_copy.display_size_height = current_screen_geometry.height()
         theme_copy.background_source = ''
