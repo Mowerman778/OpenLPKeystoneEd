@@ -256,6 +256,12 @@ class Ui_ServiceManager(object):
                                                  triggers=self.on_service_item_note_form)
         self.time_action = create_widget_action(self.menu, text=translate('OpenLP.ServiceManager', '&Start Time'),
                                                 icon=UiIcons().time, triggers=self.on_start_time_form)
+        self.attach_video_action = create_widget_action(self.menu,
+                                                        text=translate('OpenLP.ServiceManager', 'Attach &Video...'),
+                                                        icon=UiIcons().video, triggers=self.on_attach_slide_video)
+        self.remove_video_action = create_widget_action(self.menu,
+                                                        text=translate('OpenLP.ServiceManager', 'Remove V&ideo'),
+                                                        icon=UiIcons().delete, triggers=self.on_remove_slide_video)
         self.auto_start_action = create_widget_action(self.menu, text='',
                                                       icon=UiIcons().active,
                                                       triggers=self.on_auto_start)
@@ -650,6 +656,13 @@ class ServiceManager(QtWidgets.QWidget, RegistryBase, Ui_ServiceManager, LogMixi
                 if audio_path_tuple in write_list:
                     continue
                 write_list.append(audio_path_tuple)
+            for slide_index, video in item['service_item'].slide_videos.items():
+                if not video['path'].exists():
+                    missing_list.append(str(video['path']))
+                    continue
+                video_path_tuple = (video['path'], item['service_item'].get_slide_video_stored_name(slide_index))
+                if video_path_tuple not in write_list:
+                    write_list.append(video_path_tuple)
         return write_list, missing_list
 
     def save_file(self):
@@ -949,6 +962,15 @@ class ServiceManager(QtWidgets.QWidget, RegistryBase, Ui_ServiceManager, LogMixi
             self.maintain_action.setVisible(True)
         if item.parent() is None:
             self.notes_action.setVisible(True)
+        # Videos are attached to single slides of presentations that LibreOffice or PowerPoint show
+        can_have_video = item.parent() is not None and \
+            service_item['service_item'].is_capable(ItemCapabilities.ProvidesOwnDisplay)
+        has_video = can_have_video and \
+            service_item['service_item'].get_slide_video(item.data(0, QtCore.Qt.UserRole)) is not None
+        self.attach_video_action.setVisible(can_have_video)
+        self.attach_video_action.setText(translate('OpenLP.ServiceManager', 'Change &Video...') if has_video else
+                                         translate('OpenLP.ServiceManager', 'Attach &Video...'))
+        self.remove_video_action.setVisible(has_video)
         if service_item['service_item'].is_capable(ItemCapabilities.CanLoop) and  \
                 len(service_item['service_item'].get_frames()) > 1:
             self.auto_play_slides_menu.menuAction().setVisible(True)
@@ -1003,6 +1025,36 @@ class ServiceManager(QtWidgets.QWidget, RegistryBase, Ui_ServiceManager, LogMixi
             self.service_items[item]['service_item'].notes = self.service_note_form.text_edit.toPlainText()
             self.repaint_service_list(item, -1)
             self.set_modified()
+
+    def on_attach_slide_video(self):
+        """
+        Choose a video for OpenLP to play, full screen, when the selected presentation slide is shown live.
+        """
+        item, child = self.find_service_item()
+        if child < 0:
+            return
+        file_filter = '{videos} ({extensions});;{all} (*)'.format(
+            videos=translate('OpenLP', 'Video Files'), extensions=' '.join(VIDEO_EXT), all=UiStrings().AllFiles)
+        file_path, _ = FileDialog.getOpenFileName(self, translate('OpenLP.ServiceManager', 'Choose a video'),
+                                                  self.settings.value('servicemanager/last video directory'),
+                                                  file_filter)
+        if not file_path:
+            return
+        self.settings.setValue('servicemanager/last video directory', file_path.parent)
+        self.service_items[item]['service_item'].set_slide_video(child, file_path)
+        self.repaint_service_list(item, child)
+        self.set_modified()
+
+    def on_remove_slide_video(self):
+        """
+        Detach the video from the selected presentation slide.
+        """
+        item, child = self.find_service_item()
+        if child < 0:
+            return
+        self.service_items[item]['service_item'].remove_slide_video(child)
+        self.repaint_service_list(item, child)
+        self.set_modified()
 
     def on_start_time_form(self):
         """
@@ -1464,6 +1516,11 @@ class ServiceManager(QtWidgets.QWidget, RegistryBase, Ui_ServiceManager, LogMixi
                         text = service_item_from_item.get_rendered_frame(slide_index, clean=True)
                     child.setText(0, text[:40])
                     child.setData(0, QtCore.Qt.UserRole, slide_index)
+                    slide_video = service_item_from_item.slide_videos.get(slide_index)
+                    if slide_video:
+                        child.setIcon(0, UiIcons().video)
+                        child.setToolTip(0, translate('OpenLP.ServiceManager', 'Plays video: {name}').format(
+                            name=html.escape(slide_video['name'])))
                 except RuntimeError:
                     # it's probably a "wrapped C/C++ object of type QTreeWidgetItem has been deleted" due to
                     # consecutive/parallel repaint_service_list execution. We've added some mitigation to avoid this

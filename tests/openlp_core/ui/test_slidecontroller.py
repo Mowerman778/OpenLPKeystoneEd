@@ -1976,3 +1976,106 @@ def test_set_slide_list_position(position, orientation, first_widget, settings):
     # Beside the picture the list may grow to full height (or it caps the row); above it, it keeps its natural size
     expected_policy = QtWidgets.QSizePolicy.Expanding if position == 'right' else QtWidgets.QSizePolicy.Maximum
     assert slide_controller.controller.sizePolicy().verticalPolicy() == expected_policy
+
+
+def _make_controller_with_slide_video(is_live, tmp_path):
+    """A slide controller showing a presentation with a video on slide 2"""
+    slide_controller = SlideController(None)
+    slide_controller.is_live = is_live
+    slide_controller._current_hide_mode = None
+    slide_controller.preview_widget = MagicMock()
+    slide_controller.update_preview = MagicMock()
+    slide_controller.service_item = ServiceItem()
+    slide_controller.service_item.name = 'presentations'
+    slide_controller.service_item.set_slide_video(1, tmp_path / 'clip.mp4')
+    return slide_controller
+
+
+@patch('openlp.core.ui.slidecontroller.SlideVideoPlayer')
+def test_on_slide_change_plays_slide_video(MockSlideVideoPlayer: MagicMock, registry: Registry, tmp_path):
+    """When the live presentation reaches a slide with a video, the video is played"""
+    # GIVEN: A live controller showing a presentation with a video on slide 2
+    slide_controller = _make_controller_with_slide_video(True, tmp_path)
+
+    # WHEN: The presentation moves to slide 2
+    slide_controller.on_slide_change(1)
+
+    # THEN: The video is played
+    MockSlideVideoPlayer.return_value.play.assert_called_once_with(tmp_path / 'clip.mp4')
+
+
+@patch('openlp.core.ui.slidecontroller.SlideVideoPlayer')
+def test_on_slide_change_stops_slide_video(MockSlideVideoPlayer: MagicMock, registry: Registry, tmp_path):
+    """When the live presentation moves on to a slide without a video, the video is stopped"""
+    # GIVEN: A live controller playing the video on slide 2
+    slide_controller = _make_controller_with_slide_video(True, tmp_path)
+    slide_controller.on_slide_change(1)
+
+    # WHEN: The presentation moves to slide 3
+    slide_controller.on_slide_change(2)
+
+    # THEN: The video is stopped
+    MockSlideVideoPlayer.return_value.stop.assert_called_once_with()
+
+
+@patch('openlp.core.ui.slidecontroller.SlideVideoPlayer')
+def test_on_slide_change_preview_does_not_play_slide_video(MockSlideVideoPlayer: MagicMock, registry: Registry,
+                                                           tmp_path):
+    """Slide videos only play live"""
+    # GIVEN: A preview controller showing a presentation with a video on slide 2
+    slide_controller = _make_controller_with_slide_video(False, tmp_path)
+
+    # WHEN: The preview moves to slide 2
+    slide_controller.on_slide_change(1)
+
+    # THEN: Nothing is played
+    MockSlideVideoPlayer.assert_not_called()
+
+
+@patch('openlp.core.ui.slidecontroller.SlideVideoPlayer')
+def test_on_slide_change_blanked_does_not_play_slide_video(MockSlideVideoPlayer: MagicMock, registry: Registry,
+                                                           tmp_path):
+    """Slide videos do not play while the live screen is blanked"""
+    # GIVEN: A blanked live controller showing a presentation with a video on slide 2
+    slide_controller = _make_controller_with_slide_video(True, tmp_path)
+    slide_controller._current_hide_mode = HideMode.Blank
+
+    # WHEN: The presentation moves to slide 2
+    slide_controller.on_slide_change(1)
+
+    # THEN: Nothing is played
+    MockSlideVideoPlayer.assert_not_called()
+
+
+def test_set_hide_mode_stops_slide_video(registry: Registry, settings: Settings, tmp_path):
+    """Blanking the live screen stops the slide video"""
+    # GIVEN: A live controller playing a slide video
+    slide_controller = _make_controller_with_slide_video(True, tmp_path)
+    slide_controller.slide_video_player = MagicMock()
+    slide_controller.hide_menu = MagicMock()
+    slide_controller.show_screen = MagicMock()
+    slide_controller.blank_screen = MagicMock()
+    slide_controller.theme_screen = MagicMock()
+    slide_controller.desktop_screen = MagicMock()
+    slide_controller.on_toggle_loop = MagicMock()
+
+    # WHEN: The screen is blanked
+    with patch('openlp.core.ui.slidecontroller.Registry.execute'):
+        slide_controller.set_hide_mode(HideMode.Blank)
+
+    # THEN: The video is stopped
+    slide_controller.slide_video_player.stop.assert_called_once_with()
+
+
+def test_on_clear_stops_slide_video(registry: Registry, tmp_path):
+    """Clearing the live controller stops the slide video"""
+    # GIVEN: A live controller playing a slide video
+    slide_controller = _make_controller_with_slide_video(True, tmp_path)
+    slide_controller.slide_video_player = MagicMock()
+    slide_controller.mediabar = MagicMock()
+
+    # WHEN: The controller is cleared
+    slide_controller.on_clear()
+
+    # THEN: The video is stopped
+    slide_controller.slide_video_player.stop.assert_called_once_with()

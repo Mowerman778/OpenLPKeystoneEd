@@ -46,6 +46,7 @@ from openlp.core.state import State
 from openlp.core.ui import DisplayControllerType, HideMode
 from openlp.core.ui.icons import UiIcons
 from openlp.core.ui.media import media_empty_song
+from openlp.core.ui.media.slidevideo import SlideVideoPlayer
 from openlp.core.widgets.layouts import AspectRatioLayout
 from openlp.core.widgets.toolbar import MediaToolbar, OpenLPToolbar
 from openlp.core.widgets.views import ListPreviewWidget
@@ -120,6 +121,8 @@ class SlideController(QtWidgets.QWidget, LogMixin, RegistryProperties):
         self.screens = ScreenList()
         self.vlc_instance = None
         self.media_info = None
+        # Plays videos attached to presentation slides, created when first needed
+        self.slide_video_player = None
         Registry().set_flag('has doubleclick added item to service', True)
         Registry().set_flag('replace service manager item', False)
 
@@ -912,6 +915,7 @@ class SlideController(QtWidgets.QWidget, LogMixin, RegistryProperties):
         """
         self.log_debug('_process_item start')
         self.on_stop_loop()
+        self._stop_slide_video()
         self.ignore_toolbar_resize_events = True
         old_item = self.service_item
         # rest to allow the remote pick up verse 1 if large imaged
@@ -1147,6 +1151,8 @@ class SlideController(QtWidgets.QWidget, LogMixin, RegistryProperties):
         """
         self.log_debug('set_hide_mode {text}'.format(text=hide_mode))
         self._current_hide_mode = hide_mode
+        if hide_mode:
+            self._stop_slide_video()
         # Update ui buttons
         if hide_mode is None:
             self.hide_menu.setDefaultAction(self.blank_screen)
@@ -1215,6 +1221,8 @@ class SlideController(QtWidgets.QWidget, LogMixin, RegistryProperties):
                 if self.is_live and not start:
                     Registry().execute('{text}_slide'.format(text=self.service_item.name.lower()),
                                        [self.service_item, self.is_live, row])
+                    # Clicking a slide whose video has ended plays it again
+                    self._update_slide_video(row)
             else:
                 for display in self.displays:
                     display.go_to_slide(row)
@@ -1237,6 +1245,33 @@ class SlideController(QtWidgets.QWidget, LogMixin, RegistryProperties):
         self.preview_widget.change_slide(row)
         self.update_preview()
         self.selected_row = row
+        self._update_slide_video(row)
+
+    def _update_slide_video(self, row):
+        """
+        Play the video attached to a live presentation slide over the presentation, or stop the video when the
+        presentation moves to a slide without one.
+
+        :param int row: The slide now showing, counting from 0
+        """
+        if not self.is_live:
+            return
+        video_path = None
+        if self.service_item and not self._current_hide_mode:
+            video_path = self.service_item.get_slide_video(row)
+        if video_path:
+            if not self.slide_video_player:
+                self.slide_video_player = SlideVideoPlayer(self)
+            self.slide_video_player.play(video_path)
+        else:
+            self._stop_slide_video()
+
+    def _stop_slide_video(self):
+        """
+        Stop the slide video, if one is playing, so the presentation shows again.
+        """
+        if self.slide_video_player:
+            self.slide_video_player.stop()
 
     def update_preview(self):
         """
@@ -1575,6 +1610,7 @@ class SlideController(QtWidgets.QWidget, LogMixin, RegistryProperties):
         """
         self.preview_widget.clear_list()
         self.service_item = None
+        self._stop_slide_video()
         if self.is_live:
             self.mediabar.setVisible(False)
         else:

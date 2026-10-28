@@ -316,6 +316,8 @@ def test_build_context_menu(settings: Settings):
     service_manager.notes_action = MagicMock()
     service_manager.time_action = MagicMock()
     service_manager.auto_start_action = MagicMock()
+    service_manager.attach_video_action = MagicMock()
+    service_manager.remove_video_action = MagicMock()
     service_manager.auto_play_slides_menu = MagicMock()
     service_manager.auto_play_slides_once = MagicMock()
     service_manager.auto_play_slides_loop = MagicMock()
@@ -373,6 +375,8 @@ def test_build_song_context_menu(settings: Settings, state: State):
     service_manager.notes_action = MagicMock()
     service_manager.time_action = MagicMock()
     service_manager.auto_start_action = MagicMock()
+    service_manager.attach_video_action = MagicMock()
+    service_manager.remove_video_action = MagicMock()
     service_manager.auto_play_slides_menu = MagicMock()
     service_manager.auto_play_slides_once = MagicMock()
     service_manager.auto_play_slides_loop = MagicMock()
@@ -439,6 +443,8 @@ def test_build_bible_context_menu(settings: Settings, state: State):
     service_manager.notes_action = MagicMock()
     service_manager.time_action = MagicMock()
     service_manager.auto_start_action = MagicMock()
+    service_manager.attach_video_action = MagicMock()
+    service_manager.remove_video_action = MagicMock()
     service_manager.auto_play_slides_menu = MagicMock()
     service_manager.auto_play_slides_once = MagicMock()
     service_manager.auto_play_slides_loop = MagicMock()
@@ -506,6 +512,8 @@ def test_build_custom_context_menu(settings: Settings, state: State):
     service_manager.notes_action = MagicMock()
     service_manager.time_action = MagicMock()
     service_manager.auto_start_action = MagicMock()
+    service_manager.attach_video_action = MagicMock()
+    service_manager.remove_video_action = MagicMock()
     service_manager.auto_play_slides_menu = MagicMock()
     service_manager.auto_play_slides_once = MagicMock()
     service_manager.auto_play_slides_loop = MagicMock()
@@ -570,6 +578,8 @@ def test_build_image_context_menu(settings: Settings):
     service_manager.notes_action = MagicMock()
     service_manager.time_action = MagicMock()
     service_manager.auto_start_action = MagicMock()
+    service_manager.attach_video_action = MagicMock()
+    service_manager.remove_video_action = MagicMock()
     service_manager.auto_play_slides_menu = MagicMock()
     service_manager.auto_play_slides_once = MagicMock()
     service_manager.auto_play_slides_loop = MagicMock()
@@ -632,6 +642,8 @@ def test_build_media_context_menu(settings: Settings):
     service_manager.notes_action = MagicMock()
     service_manager.time_action = MagicMock()
     service_manager.auto_start_action = MagicMock()
+    service_manager.attach_video_action = MagicMock()
+    service_manager.remove_video_action = MagicMock()
     service_manager.auto_play_slides_menu = MagicMock()
     service_manager.auto_play_slides_once = MagicMock()
     service_manager.auto_play_slides_loop = MagicMock()
@@ -691,6 +703,8 @@ def test_build_presentation_pdf_context_menu(settings: Settings):
     service_manager.notes_action = MagicMock()
     service_manager.time_action = MagicMock()
     service_manager.auto_start_action = MagicMock()
+    service_manager.attach_video_action = MagicMock()
+    service_manager.remove_video_action = MagicMock()
     service_manager.auto_play_slides_menu = MagicMock()
     service_manager.auto_play_slides_once = MagicMock()
     service_manager.auto_play_slides_loop = MagicMock()
@@ -742,6 +756,8 @@ def test_build_presentation_non_pdf_context_menu(settings: Settings):
     service_manager.notes_action = MagicMock()
     service_manager.time_action = MagicMock()
     service_manager.auto_start_action = MagicMock()
+    service_manager.attach_video_action = MagicMock()
+    service_manager.remove_video_action = MagicMock()
     service_manager.auto_play_slides_menu = MagicMock()
     service_manager.auto_play_slides_once = MagicMock()
     service_manager.auto_play_slides_loop = MagicMock()
@@ -2640,3 +2656,111 @@ def test_regenerate_changed_service_items(service_manager: ServiceManager):
 
     # THEN: regenerate_service_items() should have been called with the changed parameter
     service_manager.regenerate_service_items.assert_called_once_with(changed=True)
+
+
+def test_get_write_file_list_adds_slide_videos(registry: Registry, service_manager: ServiceManager, tmp_path: Path):
+    """Slide videos are bundled into the service file, and missing ones are reported"""
+    # GIVEN: An item with one video that exists and one that does not
+    video_path = tmp_path / 'clip.mp4'
+    video_path.write_bytes(b'video')
+    service_item = ServiceItem()
+    service_item.set_slide_video(0, video_path)
+    service_item.set_slide_video(1, tmp_path / 'missing.mp4')
+    service_manager.service_items = [{'service_item': service_item}]
+
+    # WHEN: The list of files to write is made
+    with patch('openlp.core.lib.serviceitem.sha256_file_hash', return_value='abc123'):
+        write_list, missing_list = service_manager.get_write_file_list()
+
+    # THEN: The existing video is written under its hash, the missing one is reported
+    assert write_list == [(video_path, 'abc123.mp4')]
+    assert missing_list == [str(tmp_path / 'missing.mp4')]
+
+
+@patch('openlp.core.ui.servicemanager.FileDialog.getOpenFileName')
+def test_on_attach_slide_video(mocked_get_open_file_name: MagicMock, service_manager: ServiceManager,
+                               settings: Settings, tmp_path: Path):
+    """Choosing a video attaches it to the selected slide"""
+    # GIVEN: Slide 3 of a presentation selected, and a video chosen in the file dialog
+    service_item = ServiceItem()
+    service_manager.service_items = [{'service_item': service_item}]
+    service_manager.find_service_item = MagicMock(return_value=(0, 2))
+    service_manager.repaint_service_list = MagicMock()
+    service_manager.set_modified = MagicMock()
+    mocked_get_open_file_name.return_value = (tmp_path / 'clip.mp4', '')
+
+    # WHEN: Attach Video is clicked
+    service_manager.on_attach_slide_video()
+
+    # THEN: The video is attached to slide 3 and the service is marked as changed
+    assert service_item.get_slide_video(2) == tmp_path / 'clip.mp4'
+    assert settings.value('servicemanager/last video directory') == tmp_path
+    service_manager.repaint_service_list.assert_called_once_with(0, 2)
+    service_manager.set_modified.assert_called_once_with()
+
+
+@patch('openlp.core.ui.servicemanager.FileDialog.getOpenFileName')
+def test_on_attach_slide_video_cancelled(mocked_get_open_file_name: MagicMock, service_manager: ServiceManager):
+    """Cancelling the file dialog changes nothing"""
+    # GIVEN: Slide 3 of a presentation selected, and the file dialog cancelled
+    service_item = ServiceItem()
+    service_manager.service_items = [{'service_item': service_item}]
+    service_manager.find_service_item = MagicMock(return_value=(0, 2))
+    service_manager.set_modified = MagicMock()
+    mocked_get_open_file_name.return_value = (None, '')
+
+    # WHEN: Attach Video is clicked
+    service_manager.on_attach_slide_video()
+
+    # THEN: Nothing is attached
+    assert service_item.slide_videos == {}
+    service_manager.set_modified.assert_not_called()
+
+
+def test_on_remove_slide_video(service_manager: ServiceManager, tmp_path: Path):
+    """Remove Video detaches the video from the selected slide"""
+    # GIVEN: Slide 3 of a presentation, with a video, selected
+    service_item = ServiceItem()
+    service_item.set_slide_video(2, tmp_path / 'clip.mp4')
+    service_manager.service_items = [{'service_item': service_item}]
+    service_manager.find_service_item = MagicMock(return_value=(0, 2))
+    service_manager.repaint_service_list = MagicMock()
+    service_manager.set_modified = MagicMock()
+
+    # WHEN: Remove Video is clicked
+    service_manager.on_remove_slide_video()
+
+    # THEN: The video is gone and the service is marked as changed
+    assert service_item.slide_videos == {}
+    service_manager.set_modified.assert_called_once_with()
+
+
+@pytest.mark.parametrize('is_slide, provides_own_display, has_video, attach_visible, remove_visible', [
+    (False, True, False, False, False),
+    (True, False, False, False, False),
+    (True, True, False, True, False),
+    (True, True, True, True, True)])
+@patch('openlp.core.ui.servicemanager.QtWidgets.QTreeWidget.itemAt')
+@patch('openlp.core.ui.servicemanager.QtWidgets.QWidget.mapToGlobal')
+@patch('openlp.core.ui.servicemanager.QtWidgets.QMenu.exec')
+def test_slide_video_context_menu(mocked_exec, mocked_map_to_global, mocked_item_at, is_slide, provides_own_display,
+                                  has_video, attach_visible, remove_visible, service_manager: ServiceManager,
+                                  tmp_path: Path):
+    """Attach Video shows only on slides of presentations with their own display; Remove Video only with a video"""
+    # GIVEN: A presentation item, and the item or its second slide right-clicked
+    service_item = ServiceItem()
+    if provides_own_display:
+        service_item.add_capability(ItemCapabilities.ProvidesOwnDisplay)
+    if has_video:
+        service_item.set_slide_video(1, tmp_path / 'clip.mp4')
+    service_manager.service_items = [{'service_item': service_item}]
+    parent = MagicMock(**{'data.return_value': 1})
+    mocked_item_at.return_value = MagicMock(**{'parent.return_value': parent if is_slide else None,
+                                               'data.return_value': 1})
+
+    # WHEN: The context menu is shown
+    service_manager.context_menu(None)
+
+    # THEN: The video actions are shown or hidden as expected
+    assert service_manager.attach_video_action.isVisible() is attach_visible
+    assert service_manager.remove_video_action.isVisible() is remove_visible

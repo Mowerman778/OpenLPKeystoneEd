@@ -346,6 +346,7 @@ class Settings(QtCore.QSettings):
         'presentations/db database': '',
         'servicemanager/last directory': None,
         'servicemanager/last file': None,
+        'servicemanager/last video directory': None,
         'servicemanager/service theme': None,
         'SettingsImport/file_date_created': datetime.datetime.now().strftime("%Y-%m-%d %H:%M"),
         'SettingsImport/Make_Changes': 'At_Own_RISK',

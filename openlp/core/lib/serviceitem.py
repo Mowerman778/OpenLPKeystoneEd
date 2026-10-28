@@ -99,6 +99,8 @@ class ServiceItem(RegistryProperties):
         self.media_length = 0
         self.from_service = False
         self.background_audio = []
+        # Videos OpenLP plays itself over a presentation slide: {slide index: {'path': ..., 'hash': ..., 'name': ...}}
+        self.slide_videos = {}
         self.theme_overwritten = False
         self.temporary_edit = False
         self.auto_play_slides_once = False
@@ -441,6 +443,15 @@ class ServiceItem(RegistryProperties):
                 # background audio filename shown in the ui will be the file_hash + the suffix.
                 path_str = '{hash}{suffix}'.format(hash=file_hash, suffix=file_path.suffix)
             service_header['background_audio'].append(path_str)
+        if self.slide_videos:
+            service_header['slide_videos'] = []
+            for slide_index, video in sorted(self.slide_videos.items()):
+                if lite_save:
+                    path_str = str(video['path'])
+                else:
+                    path_str = self.get_slide_video_stored_name(slide_index)
+                service_header['slide_videos'].append({'slide': slide_index, 'file': path_str,
+                                                       'name': video['name']})
         service_data = []
         if self.service_item_type == ServiceItemType.Text:
             for slide in self.slides:
@@ -551,6 +562,14 @@ class ServiceItem(RegistryProperties):
                 if not file_hash:
                     file_hash = sha256_file_hash(file_path)
                 self.background_audio.append((file_path, file_hash))
+        self.slide_videos = {}
+        for slide_video in header.get('slide_videos', []):
+            file_path = Path(slide_video['file'])
+            if path:
+                file_path = path / file_path
+            # Bundled files are named by their hash, so the hash is the file name without its suffix
+            self.slide_videos[slide_video['slide']] = {'path': file_path, 'hash': file_path.stem if path else None,
+                                                       'name': slide_video.get('name', file_path.name)}
         self.theme_overwritten = header.get('theme_overwritten', False)
         if self.service_item_type == ServiceItemType.Text:
             for slide in service_item['serviceitem']['data']:
@@ -706,6 +725,8 @@ class ServiceItem(RegistryProperties):
         self.unique_identifier = other.unique_identifier
         self.notes = other.notes
         self.temporary_edit = other.temporary_edit
+        self.slide_videos = {index: video for index, video in other.slide_videos.items()
+                             if index < len(self.slides)}
         # Copy theme over if present.
         if other.theme is not None:
             self.theme = other.theme
@@ -877,6 +898,45 @@ class ServiceItem(RegistryProperties):
             for frame in self.get_frames():
                 if self.get_frame_path(frame=frame) in invalid_paths:
                     self.remove_frame(frame)
+        for slide_index, video in list(self.slide_videos.items()):
+            if str(video['path']) in (invalid_paths or []):
+                del self.slide_videos[slide_index]
+
+    def set_slide_video(self, slide_index, file_path):
+        """
+        Attach a video for OpenLP to play when the slide is shown live, in place of the presentation.
+        The dict is changed in place, because the live controller holds a shallow copy of this item.
+
+        :param int slide_index: The slide, counting from 0
+        :param Path file_path: The video file
+        """
+        self.slide_videos[slide_index] = {'path': Path(file_path), 'hash': None, 'name': Path(file_path).name}
+
+    def remove_slide_video(self, slide_index):
+        """
+        Detach the video from a slide, if it has one.
+
+        :param int slide_index: The slide, counting from 0
+        """
+        self.slide_videos.pop(slide_index, None)
+
+    def get_slide_video(self, slide_index):
+        """
+        :param int slide_index: The slide, counting from 0
+        :return: The path of the video attached to the slide, or None
+        """
+        video = self.slide_videos.get(slide_index)
+        return video['path'] if video else None
+
+    def get_slide_video_stored_name(self, slide_index):
+        """
+        :param int slide_index: The slide, counting from 0
+        :return: The name the slide's video is stored under in a service file: its sha256 hash plus its suffix
+        """
+        video = self.slide_videos[slide_index]
+        if not video['hash']:
+            video['hash'] = sha256_file_hash(video['path'])
+        return '{hash}{suffix}'.format(hash=video['hash'], suffix=video['path'].suffix)
 
     def requires_audio(self):
         return self.is_capable(ItemCapabilities.HasBackgroundAudio)

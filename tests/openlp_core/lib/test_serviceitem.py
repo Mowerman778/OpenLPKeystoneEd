@@ -1195,3 +1195,106 @@ def test_update_theme(registry: Registry, is_text: bool, is_clear_called: bool):
         service_item._clear_slides_cache.assert_called_once()
     else:
         service_item._clear_slides_cache.assert_not_called()
+
+
+def _make_item_with_slide_video(video_path):
+    """A two-slide text item with a video attached to the second slide"""
+    service_item = ServiceItem()
+    service_item.name = 'presentations'
+    service_item.title = 'Deck'
+    service_item.add_from_text('Slide one')
+    service_item.add_from_text('Slide two')
+    service_item.set_slide_video(1, video_path)
+    return service_item
+
+
+@patch('openlp.core.lib.serviceitem.sha256_file_hash', return_value='abc123')
+def test_slide_video_full_save_round_trip(mocked_sha256_file_hash, registry: Registry, state_media, tmp_path: Path):
+    """A slide video is saved under its hash in a service file and found again in the service folder on load"""
+    # GIVEN: An item with a video attached to slide 2
+    registry.register('renderer', MagicMock())
+    service_item = _make_item_with_slide_video(tmp_path / 'clip.mp4')
+
+    # WHEN: The item is saved as a full service and loaded back from the service folder
+    rep = service_item.get_service_repr(False)
+    loaded_item = ServiceItem()
+    loaded_item.set_from_service({'serviceitem': rep}, tmp_path / 'service', 3)
+
+    # THEN: The video is stored by hash, and keeps its name for display
+    assert rep['header']['slide_videos'] == [{'slide': 1, 'file': 'abc123.mp4', 'name': 'clip.mp4'}]
+    assert loaded_item.get_slide_video(1) == tmp_path / 'service' / 'abc123.mp4'
+    assert loaded_item.slide_videos[1]['name'] == 'clip.mp4'
+    assert loaded_item.slide_videos[1]['hash'] == 'abc123'
+    assert loaded_item.get_slide_video(0) is None
+
+
+def test_slide_video_lite_save_round_trip(registry: Registry, state_media, tmp_path: Path):
+    """A lite service keeps the video's original path"""
+    # GIVEN: An item with a video attached to slide 2
+    registry.register('renderer', MagicMock())
+    service_item = _make_item_with_slide_video(tmp_path / 'clip.mp4')
+
+    # WHEN: The item is saved as a lite service and loaded back
+    rep = service_item.get_service_repr(True)
+    loaded_item = ServiceItem()
+    loaded_item.set_from_service({'serviceitem': rep}, None, 3)
+
+    # THEN: The original path is used
+    assert loaded_item.get_slide_video(1) == tmp_path / 'clip.mp4'
+
+
+def test_no_slide_videos_not_saved(registry: Registry, settings):
+    """Items without slide videos do not get the extra header entry"""
+    # GIVEN: An item without videos
+    registry.register('renderer', MagicMock())
+    service_item = ServiceItem()
+    service_item.name = 'presentations'
+    service_item.add_from_text('Slide one')
+
+    # WHEN: The item is saved
+    rep = service_item.get_service_repr(True)
+
+    # THEN: There is no slide_videos entry
+    assert 'slide_videos' not in rep['header']
+
+
+def test_remove_slide_video(registry: Registry, tmp_path: Path):
+    """remove_slide_video() detaches the video, and does nothing for a slide without one"""
+    # GIVEN: An item with a video attached to slide 2
+    service_item = _make_item_with_slide_video(tmp_path / 'clip.mp4')
+
+    # WHEN: The videos are removed from slides 1 and 2
+    service_item.remove_slide_video(0)
+    service_item.remove_slide_video(1)
+
+    # THEN: No videos are left
+    assert service_item.slide_videos == {}
+
+
+def test_remove_invalid_frames_drops_missing_slide_video(registry: Registry, tmp_path: Path):
+    """A slide video that is missing when the service is saved is dropped from the item"""
+    # GIVEN: An item with a video attached to slide 2
+    service_item = _make_item_with_slide_video(tmp_path / 'clip.mp4')
+
+    # WHEN: The video is reported missing
+    service_item.remove_invalid_frames([str(tmp_path / 'clip.mp4')])
+
+    # THEN: The video is gone
+    assert service_item.get_slide_video(1) is None
+
+
+def test_merge_keeps_slide_videos(registry: Registry, tmp_path: Path):
+    """merge() carries slide videos over to the replacement item, except for slides it no longer has"""
+    # GIVEN: An original item with videos on slides 2 and 5, and a two-slide replacement
+    original = _make_item_with_slide_video(tmp_path / 'clip.mp4')
+    original.set_slide_video(4, tmp_path / 'other.mp4')
+    replacement = ServiceItem()
+    replacement.add_from_text('Slide one')
+    replacement.add_from_text('Slide two')
+
+    # WHEN: The replacement is merged with the original
+    replacement.merge(original)
+
+    # THEN: Only the video on slide 2 is kept
+    assert replacement.get_slide_video(1) == tmp_path / 'clip.mp4'
+    assert replacement.get_slide_video(4) is None
