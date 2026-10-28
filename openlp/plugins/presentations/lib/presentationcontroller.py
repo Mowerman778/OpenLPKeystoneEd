@@ -364,6 +364,9 @@ class PresentationDocument(object):
         except Exception:
             log.exception('Failed to open/read existing titles file')
             titles = []
+        # splitlines() drops trailing empty titles, so pad to the number of notes files saved
+        while (self.get_thumbnail_folder() / 'slideNotes{number:d}.txt'.format(number=len(titles) + 1)).is_file():
+            titles.append('')
         for slide_no, title in enumerate(titles, 1):
             notes_path = self.get_thumbnail_folder() / 'slideNotes{number:d}.txt'.format(number=slide_no)
             try:

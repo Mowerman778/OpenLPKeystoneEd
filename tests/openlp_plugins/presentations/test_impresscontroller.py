@@ -22,9 +22,12 @@
 Functional tests to test the Impress class and related methods.
 """
 import pytest
+from pathlib import Path
 from unittest.mock import MagicMock, call, patch
 
-from openlp.plugins.presentations.lib.impresscontroller import ImpressController, ImpressDocument, TextType
+from openlp.core.common.platform import is_win
+from openlp.plugins.presentations.lib.impresscontroller import ImpressController, ImpressDocument, TextType, \
+    get_com_soffice_path
 from tests.utils.constants import RESOURCE_PATH
 
 
@@ -148,6 +151,179 @@ def test_start_process_on_linux(MockQProcess, mocked_get_uno_command, mocked_is_
     mocked_process.startDetached.assert_called_once_with('libreoffice')
 
 
+@patch('openlp.plugins.presentations.lib.impresscontroller.is_win', return_value=True)
+def test_start_process_on_windows_without_office(mocked_is_win, settings, mock_plugin):
+    """
+    Test that start_process() on Windows does not crash when the COM service manager is not available
+    """
+    # GIVEN: An ImpressController whose COM service manager cannot be found
+    controller = ImpressController(plugin=mock_plugin)
+    controller.get_com_servicemanager = MagicMock(return_value=None)
+
+    # WHEN: start_process() is called
+    controller.start_process()
+
+    # THEN: No exception is raised and the manager stays None
+    assert controller.manager is None
+
+
+@patch('openlp.plugins.presentations.lib.impresscontroller.is_win', return_value=True)
+def test_kill_when_office_has_died(mocked_is_win, settings, mock_plugin):
+    """
+    Test that kill() does not raise when LibreOffice has crashed, so OpenLP can still shut down
+    """
+    # GIVEN: An ImpressController that disabled the Presenter Screen, and a LibreOffice that no longer answers
+    controller = ImpressController(plugin=mock_plugin)
+    controller.presenter_screen_disabled_by_openlp = True
+    controller.toggle_presentation_screen = MagicMock(side_effect=Exception('The RPC server is unavailable.'))
+    desktop = MagicMock()
+    desktop.getComponents.side_effect = Exception('The RPC server is unavailable.')
+    controller.get_com_desktop = MagicMock(return_value=desktop)
+
+    # WHEN: kill() is called at shutdown
+    controller.kill()
+
+    # THEN: No exception is raised and LibreOffice is not asked to terminate
+    desktop.terminate.assert_not_called()
+
+
+@pytest.mark.skipif(not is_win(), reason='Uses the Windows registry')
+@pytest.mark.parametrize('command', [r'C:\LO\program\soffice.exe --nodefault --nologo',
+                                     r'"C:\LO\program\soffice.exe" --nodefault --nologo',
+                                     r'C:\LO\program\soffice.exe -nodefault'])
+def test_get_com_soffice_path(command):
+    """
+    Test that get_com_soffice_path() extracts soffice.exe from the COM LocalServer32 command
+    """
+    # GIVEN: A registry where the service manager is registered with the given command
+    with patch('openlp.plugins.presentations.lib.impresscontroller.winreg.QueryValue',
+               side_effect=['{clsid}', command]), \
+            patch('openlp.plugins.presentations.lib.impresscontroller.Path.is_file', return_value=True):
+        # WHEN: get_com_soffice_path() is called
+        result = get_com_soffice_path()
+
+    # THEN: The path to soffice.exe is returned
+    assert result == Path(r'C:\LO\program\soffice.exe')
+
+
+@pytest.mark.skipif(not is_win(), reason='Uses the Windows registry')
+def test_get_com_soffice_path_not_registered():
+    """
+    Test that get_com_soffice_path() returns None when LibreOffice is not registered with COM
+    """
+    # GIVEN: A registry without the service manager
+    with patch('openlp.plugins.presentations.lib.impresscontroller.winreg.QueryValue', side_effect=OSError):
+        # WHEN: get_com_soffice_path() is called
+        result = get_com_soffice_path()
+
+    # THEN: None is returned
+    assert result is None
+
+
+@patch('openlp.plugins.presentations.lib.impresscontroller.time.sleep')
+@patch('openlp.plugins.presentations.lib.impresscontroller.subprocess.Popen')
+@patch('openlp.plugins.presentations.lib.impresscontroller.get_com_soffice_path')
+def test_start_office_without_restore(mocked_get_path, MockPopen, mocked_sleep, settings, mock_plugin):
+    """
+    Test that LibreOffice is started once with --norestore, so the Document Recovery dialog cannot block COM
+    """
+    # GIVEN: An ImpressController and an installed LibreOffice
+    mocked_get_path.return_value = Path('soffice.exe')
+    controller = ImpressController(plugin=mock_plugin)
+
+    # WHEN: start_office_without_restore() is called twice
+    controller.start_office_without_restore()
+    controller.start_office_without_restore()
+
+    # THEN: LibreOffice is started only once, with --norestore
+    MockPopen.assert_called_once()
+    assert MockPopen.call_args[0][0] == ['soffice.exe', '--norestore', '--nologo', '--nodefault']
+
+
+@patch('openlp.plugins.presentations.lib.impresscontroller.subprocess.Popen')
+@patch('openlp.plugins.presentations.lib.impresscontroller.get_com_soffice_path', return_value=None)
+def test_start_office_without_restore_not_installed(mocked_get_path, MockPopen, settings, mock_plugin):
+    """
+    Test that nothing is started when LibreOffice is not installed
+    """
+    # GIVEN: An ImpressController and no LibreOffice
+    controller = ImpressController(plugin=mock_plugin)
+
+    # WHEN: start_office_without_restore() is called
+    controller.start_office_without_restore()
+
+    # THEN: Nothing is started
+    MockPopen.assert_not_called()
+
+
+@patch('openlp.plugins.presentations.lib.impresscontroller.is_win', return_value=True)
+def test_load_presentation_allows_linked_media(mocked_is_win, doc):
+    """
+    Test that load_presentation() asks for linked content (e.g. linked videos) to be loaded
+    """
+    # GIVEN: A controller with a COM desktop
+    doc.controller.get_com_desktop = MagicMock()
+    doc.controller.create_property = MagicMock(side_effect=lambda name, value: (name, value))
+    doc.create_thumbnails = MagicMock()
+    doc.create_titles_and_notes = MagicMock()
+    doc.settings.setValue('presentations/impress use display setting', True)
+
+    # WHEN: load_presentation() is called
+    doc.load_presentation()
+
+    # THEN: The document is loaded hidden with UpdateDocMode FULL_UPDATE
+    load = doc.controller.get_com_desktop.return_value.loadComponentFromURL
+    assert load.call_args[0][3] == (('Hidden', True), ('UpdateDocMode', 3))
+
+
+def test_create_thumbnails_returns_to_first_page(doc):
+    """
+    Test that create_thumbnails() goes back to the first page, so the slide show does not start on the last one
+    """
+    # GIVEN: A document with 3 pages and no cached thumbnails
+    doc.check_thumbnails = MagicMock(return_value=False)
+    doc.controller.create_property = MagicMock()
+    doc.convert_thumbnail = MagicMock()
+    doc.get_temp_folder = MagicMock()
+    doc.document = MagicMock()
+    pages = doc.document.getDrawPages.return_value
+    pages.getCount.return_value = 3
+    pages.getByIndex.side_effect = lambda index: 'page{}'.format(index)
+
+    # WHEN: create_thumbnails() is called
+    with patch('openlp.plugins.presentations.lib.impresscontroller.delete_file'):
+        doc.create_thumbnails()
+
+    # THEN: The last page set is the first page
+    set_current_page = doc.document.getCurrentController.return_value.setCurrentPage
+    assert set_current_page.call_args_list[-1] == call('page0')
+
+
+def test_get_notes_skips_placeholders(doc):
+    """
+    Test that the notes text skips the slide number/header/footer placeholders on the notes page
+    """
+    # GIVEN: A notes page with a notes shape and a slide number shape
+    notes_shape = MagicMock()
+    notes_shape.getShapeType.return_value = 'com.sun.star.presentation.NotesShape'
+    notes_shape.getString.return_value = 'Real note'
+    number_shape = MagicMock()
+    number_shape.getShapeType.return_value = 'com.sun.star.presentation.SlideNumberShape'
+    number_shape.getString.return_value = '<number>'
+    notes_page = MagicMock()
+    notes_page.getCount.return_value = 2
+    notes_page.getByIndex.side_effect = [notes_shape, number_shape]
+    doc.document = MagicMock()
+    doc.document.getDrawPages.return_value.getCount.return_value = 1
+    doc.document.getDrawPages.return_value.getByIndex.return_value.getNotesPage.return_value = notes_page
+
+    # WHEN: The notes are requested
+    result = doc.get_slide_notes(1)
+
+    # THEN: Only the real note is returned
+    assert result == 'Real note\n'
+
+
 def test_create_titles_and_notes(doc):
     """
     Test ImpressDocument.create_titles_and_notes
@@ -265,6 +441,7 @@ def _mock_a_LibreOffice_document(page_count, note_count, text_count):
     notes_page.getCount.return_value = note_count
     shape = MagicMock()
     shape.supportsService.return_value = True
+    shape.getShapeType.return_value = 'com.sun.star.presentation.NotesShape'
     shape.getString.return_value = 'Note'
     notes_page.getByIndex.return_value = shape
     page.getNotesPage.return_value = notes_page

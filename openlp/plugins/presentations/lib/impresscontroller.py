@@ -31,7 +31,9 @@
 # http://nxsy.org/comparing-documents-with-openoffice-and-python
 
 import logging
+import subprocess
 import time
+from pathlib import Path
 
 from PyQt5 import QtCore
 
@@ -44,6 +46,7 @@ from openlp.plugins.presentations.lib.presentationcontroller import Presentation
 
 # Declare the XSlideShowListener class so we can inherit from it below, won't really use in on windows.
 if is_win():
+    import winreg
     from win32com.client import Dispatch
     import pywintypes
     uno_available = False
@@ -76,6 +79,28 @@ else:
 log = logging.getLogger(__name__)
 
 
+def get_com_soffice_path():
+    """
+    Find soffice.exe from the COM registration of the LibreOffice/OpenOffice service manager.
+
+    :return: The path to soffice.exe, or None if it is not registered or no longer exists
+    :rtype: Path | None
+    """
+    try:
+        clsid = winreg.QueryValue(winreg.HKEY_CLASSES_ROOT, r'com.sun.star.ServiceManager\CLSID')
+        command = winreg.QueryValue(winreg.HKEY_CLASSES_ROOT, r'CLSID\{clsid}\LocalServer32'.format(clsid=clsid))
+    except OSError:
+        return None
+    # The value is the exe followed by arguments, e.g. "C:\Program Files\LibreOffice\program\soffice.exe --nologo"
+    command = command.strip()
+    if command.startswith('"'):
+        exe = command[1:].split('"', 1)[0]
+    else:
+        exe = command.split(' --', 1)[0].split(' -', 1)[0]
+    path = Path(exe)
+    return path if path.is_file() else None
+
+
 class ImpressController(PresentationController):
     """
     Class to control interactions with Impress presentations. It creates the runtime environment, loads and closes the
@@ -96,6 +121,7 @@ class ImpressController(PresentationController):
         self.manager = None
         self.conf_provider = None
         self.presenter_screen_disabled_by_openlp = False
+        self.office_started = False
 
     def check_available(self):
         """
@@ -114,6 +140,8 @@ class ImpressController(PresentationController):
         log.debug('start process Openoffice')
         if is_win():
             self.manager = self.get_com_servicemanager()
+            if self.manager is None:
+                return
             self.manager._FlagAsMethod('Bridge_GetStruct')
             self.manager._FlagAsMethod('Bridge_GetValueObject')
         else:
@@ -170,19 +198,45 @@ class ImpressController(PresentationController):
         Return the OOo service manager for windows.
         """
         log.debug('get_com_servicemanager openoffice')
+        self.start_office_without_restore()
         try:
             return Dispatch('com.sun.star.ServiceManager')
         except pywintypes.com_error:
             log.warning('Failed to get COM service manager. Impress Controller has been disabled')
             return None
 
+    def start_office_without_restore(self):
+        """
+        On Windows, COM starts LibreOffice by itself, and after a crash LibreOffice then opens its Document Recovery
+        dialog. That dialog is hidden behind OpenLP and blocks every COM call, so start LibreOffice ourselves with
+        --norestore before COM connects. If it is already running, the arguments are handed to that instance.
+        """
+        if self.office_started:
+            return
+        self.office_started = True
+        soffice = get_com_soffice_path()
+        if not soffice:
+            return
+        try:
+            subprocess.Popen([str(soffice), '--norestore', '--nologo', '--nodefault'],
+                             stdin=subprocess.DEVNULL, stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
+        except OSError:
+            log.exception('Failed to start {path}'.format(path=soffice))
+            return
+        # Give it time to register with COM, otherwise COM starts a second copy that may show Document Recovery
+        time.sleep(3)
+
     def kill(self):
         """
         Called at system exit to clean up any running presentations.
         """
         log.debug('Kill OpenOffice')
+        # LibreOffice may have crashed or been closed, so nothing here may stop OpenLP from shutting down
         if self.presenter_screen_disabled_by_openlp:
-            self.toggle_presentation_screen(True)
+            try:
+                self.toggle_presentation_screen(True)
+            except Exception:
+                log.warning('Failed to re-enable the Presenter Screen - Impress may have closed')
         while self.docs:
             self.docs[0].close_presentation()
         desktop = None
@@ -195,14 +249,18 @@ class ImpressController(PresentationController):
             log.warning('Failed to find an OpenOffice desktop to terminate')
         if not desktop:
             return
-        docs = desktop.getComponents()
         cnt = 0
-        if docs.hasElements():
-            list_elements = docs.createEnumeration()
-            while list_elements.hasMoreElements():
-                doc = list_elements.nextElement()
-                if doc.getImplementationName() != 'com.sun.star.comp.framework.BackingComp':
-                    cnt += 1
+        try:
+            docs = desktop.getComponents()
+            if docs.hasElements():
+                list_elements = docs.createEnumeration()
+                while list_elements.hasMoreElements():
+                    doc = list_elements.nextElement()
+                    if doc.getImplementationName() != 'com.sun.star.comp.framework.BackingComp':
+                        cnt += 1
+        except Exception:
+            log.warning('Failed to list OpenOffice documents - Impress may have closed')
+            return
         if cnt > 0:
             log.debug('OpenOffice not terminated as docs are still open')
         else:
@@ -318,7 +376,9 @@ class ImpressDocument(PresentationDocument):
         if desktop is None:
             return False
         self.desktop = desktop
-        properties = (self.controller.create_property('Hidden', True),)
+        # UpdateDocMode FULL_UPDATE (3): without it, linked videos/sounds are blocked when loading through the API
+        properties = (self.controller.create_property('Hidden', True),
+                      self.controller.create_property('UpdateDocMode', 3))
         try:
             self.document = desktop.loadComponentFromURL(url, '_blank', 0, properties)
         except Exception:
@@ -373,6 +433,8 @@ class ImpressDocument(PresentationDocument):
                 log.exception('ERROR! ErrorCodeIOException {error:d}'.format(error=exception.ErrCode))
             except Exception:
                 log.exception('{path} - Unable to store openoffice preview'.format(path=path))
+        # Return to the first page, otherwise the slide show starts on the last page exported
+        doc.getCurrentController().setCurrentPage(pages.getByIndex(0))
 
     def close_presentation(self):
         """
@@ -563,8 +625,12 @@ class ImpressDocument(PresentationDocument):
                     shape_type = shape.getShapeType()
                     if shape.supportsService("com.sun.star.drawing.Text"):
                         # if they requested title, make sure it is the title
-                        if text_type != TextType.Title or shape_type == "com.sun.star.presentation.TitleTextShape":
-                            text += shape.getString() + '\n'
+                        if text_type == TextType.Title and shape_type != "com.sun.star.presentation.TitleTextShape":
+                            continue
+                        # notes pages also hold slide number/header/footer placeholders, so skip those
+                        if text_type == TextType.Notes and shape_type != "com.sun.star.presentation.NotesShape":
+                            continue
+                        text += shape.getString() + '\n'
         return text
 
     def create_titles_and_notes(self):

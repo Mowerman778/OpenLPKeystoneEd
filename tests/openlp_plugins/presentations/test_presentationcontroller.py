@@ -141,6 +141,22 @@ def test_get_titles_and_notes(document):
         assert mocked_read_text.call_count == 3, 'Three files should be read'
 
 
+def test_get_titles_and_notes_with_empty_last_titles(document, tmp_path):
+    """
+    Test that notes for the last slides are kept when those slides have no title
+    """
+    # GIVEN: 3 slides saved, where only the first one has a title
+    with patch(FOLDER_TO_PATCH, return_value=tmp_path):
+        document.save_titles_and_notes(['Title', '', ''], ['one', 'two', 'three'])
+
+        # WHEN: calling get_titles_and_notes
+        result_titles, result_notes = document.get_titles_and_notes()
+
+    # THEN: All 3 slides are returned
+    assert result_titles == ['Title', '', '']
+    assert result_notes == ['one', 'two', 'three']
+
+
 def test_get_titles_and_notes_with_file_not_found(document):
     """
     Test PresentationDocument.get_titles_and_notes method with file not found
