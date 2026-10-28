@@ -25,12 +25,12 @@ from pathlib import Path
 from unittest.mock import MagicMock, patch
 
 import pytest
-from PyQt5 import QtCore, QtWidgets
+from PyQt5 import QtCore, QtGui, QtWidgets
 
 from openlp.core.common.registry import Registry
 from openlp.core.lib.theme import Theme
-from openlp.core.ui.themedesigner import (FOOTER_AREA, MAIN_AREA, AreaOverlay, ThemeDesignerForm, move_rect,
-                                          resize_rect, theme_area_rect)
+from openlp.core.ui.themedesigner import (FOOTER_AREA, MAIN_AREA, MOVE, AreaOverlay, ThemeDesignerForm,
+                                          move_rect, resize_rect, theme_area_rect)
 
 SCREEN = QtCore.QRect(0, 0, 1920, 1080)
 
@@ -206,3 +206,130 @@ def test_save_needs_a_name(form):
         form.accept()
     message.assert_called_once()
     form.theme_manager.save_theme.assert_not_called()
+
+
+def test_overlay_handles_and_move_square_on_every_box(qapp):
+    """
+    Test both boxes have sizing handles and a move square, not just the selected one
+    """
+    overlay = AreaOverlay(None, QtCore.QSize(1920, 1080))
+    overlay.resize(960, 540)
+    overlay.areas = {MAIN_AREA: QtCore.QRect(100, 50, 1700, 700), FOOTER_AREA: QtCore.QRect(10, 950, 1900, 100)}
+    overlay.selected = MAIN_AREA
+    # The footer's bottom right handle, though the main box is selected
+    assert overlay.hit_test(QtCore.QPoint(959, 524)) == (FOOTER_AREA, 'bottom_right')
+    # The move squares in the middle of each box
+    assert overlay.hit_test(QtCore.QPoint(475, 200)) == (MAIN_AREA, MOVE)
+    assert overlay.hit_test(QtCore.QPoint(480, 500)) == (FOOTER_AREA, MOVE)
+
+
+def test_overlay_drag_move_square_moves_box(qapp):
+    """
+    Test dragging the move square moves the whole box without resizing it
+    """
+    overlay = AreaOverlay(None, QtCore.QSize(1920, 1080))
+    overlay.resize(960, 540)
+    overlay.areas = {MAIN_AREA: QtCore.QRect(100, 50, 1700, 700), FOOTER_AREA: QtCore.QRect(10, 950, 1900, 100)}
+    press = QtGui.QMouseEvent(QtCore.QEvent.MouseButtonPress, QtCore.QPointF(475, 200), QtCore.Qt.LeftButton,
+                              QtCore.Qt.LeftButton, QtCore.Qt.NoModifier)
+    move = QtGui.QMouseEvent(QtCore.QEvent.MouseMove, QtCore.QPointF(485, 210), QtCore.Qt.NoButton,
+                             QtCore.Qt.LeftButton, QtCore.Qt.NoModifier)
+    overlay.mousePressEvent(press)
+    overlay.mouseMoveEvent(move)
+    assert overlay.areas[MAIN_AREA] == QtCore.QRect(120, 70, 1700, 700)
+
+
+def test_font_fields_follow_the_selected_area(form):
+    """
+    Test the Font fields show the selected area, and outline/shadow only show for the main text
+    """
+    theme = _theme()
+    theme.font_main_size, theme.font_footer_size = 40, 12
+    _open(form, theme)
+    assert form.font_size_spin.value() == 40
+    assert not form.outline_group.isHidden()
+    form.canvas.overlay.selected = FOOTER_AREA
+    form.canvas.overlay.area_selected.emit(FOOTER_AREA)
+    assert form.font_size_spin.value() == 12
+    assert form.outline_group.isHidden() and form.shadow_group.isHidden()
+    assert not form.horizontal_align_combo.isEnabled()
+
+
+def test_changing_a_font_field_changes_the_theme(form):
+    """
+    Test changing font and paragraph settings updates the theme being edited
+    """
+    _open(form, _theme())
+    form.font_size_spin.setValue(55)
+    form.bold_button.setChecked(True)
+    form.horizontal_align_combo.setCurrentIndex(0)
+    form.shadow_group.setChecked(False)
+    assert form.theme.font_main_size == 55
+    assert form.theme.font_main_bold is True
+    assert form.theme.display_horizontal_align == 0
+    assert form.theme.font_main_shadow is False
+    assert form.theme.font_footer_size != 55
+
+
+def test_background_colour(form):
+    """
+    Test choosing a solid colour background
+    """
+    _open(form, _theme())
+    form.background_type_combo.setCurrentIndex(0)
+    form.background_color_button.color = '#123456'
+    form.background_color_button.colorChanged.emit('#123456')
+    assert form.theme.background_type == 'solid'
+    assert form.theme.background_color == '#123456'
+    assert form.background_pages.currentIndex() == 0
+
+
+def test_import_graphic(form, tmp_path):
+    """
+    Test importing a picture (e.g. an animated GIF) makes it the background
+    """
+    gif = tmp_path / 'snow.gif'
+    gif.write_bytes(b'GIF89a')
+    _open(form, _theme())
+    form.background_type_combo.setCurrentIndex(2)
+    with patch('openlp.core.ui.themedesigner.FileDialog.getOpenFileName', return_value=(gif, '')):
+        form.on_import_image_clicked()
+    assert form.theme.background_type == 'image'
+    assert form.theme.background_source == gif
+    assert form.image_file_label.text() == 'snow.gif'
+
+
+def test_save_picture_background_without_file(form):
+    """
+    Test a picture background can't be saved before a picture is chosen
+    """
+    _open(form, _theme())
+    form.background_type_combo.setCurrentIndex(2)
+    with patch('openlp.core.ui.themedesigner.critical_error_message_box') as message:
+        form.accept()
+    message.assert_called_once()
+    form.theme_manager.save_theme.assert_not_called()
+
+
+def test_save_colour_background_drops_old_file(form):
+    """
+    Test a colour background is saved without a background file
+    """
+    _open(form, _theme())
+    form.theme.background_filename = Path('old.png')
+    form.background_type_combo.setCurrentIndex(0)
+    with patch.object(QtWidgets.QDialog, 'accept'):
+        form.accept()
+    assert form.theme_manager.save_theme.call_args[0][0].background_filename is None
+
+
+def test_missing_font_is_kept(form):
+    """
+    Test a theme font that isn't installed is shown and kept when other settings change
+    """
+    theme = _theme()
+    theme.font_main_name = 'Font That Is Not Installed'
+    _open(form, theme)
+    assert form.font_combo.currentText() == 'Font That Is Not Installed'
+    form.font_size_spin.setValue(33)
+    assert form.theme.font_main_name == 'Font That Is Not Installed'
