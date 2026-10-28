@@ -198,6 +198,50 @@ def test_two_monitor_default_moves_preview_and_live(manager, window):
     assert not window.service_manager_dock.isFloating()
 
 
+def test_keep_title_bars_on_screen(manager, window):
+    """
+    Test a floating panel whose title bar is above the top of its monitor is moved down so it can be dragged
+    """
+    # GIVEN: Preview floating at the top of the second monitor, its 30px title bar above the screen
+    dock = MagicMock()
+    dock.isFloating.return_value = True
+    dock.isVisible.return_value = True
+    dock.geometry.return_value = QtCore.QRect(1366, 44, 640, 672)
+    dock.frameGeometry.return_value = QtCore.QRect(1365, 14, 642, 703)
+    screen = MagicMock()
+    screen.availableGeometry.return_value = QtCore.QRect(1366, 44, 1280, 720)
+    window.layout_docks = MagicMock(return_value=[dock])
+
+    # WHEN: The title bars are checked
+    with patch('openlp.core.ui.layouts.QtGui.QGuiApplication.screenAt', return_value=screen):
+        manager.keep_title_bars_on_screen()
+
+    # THEN: It is moved down so its title bar is on the monitor
+    dock.setGeometry.assert_called_once_with(1367, 74, 640, 672)
+
+
+def test_keep_title_bars_on_screen_leaves_reachable_panels(manager, window):
+    """
+    Test a floating panel with its title bar on screen is left alone
+    """
+    # GIVEN: A floating panel well inside its monitor
+    dock = MagicMock()
+    dock.isFloating.return_value = True
+    dock.isVisible.return_value = True
+    dock.geometry.return_value = QtCore.QRect(1500, 200, 400, 300)
+    dock.frameGeometry.return_value = QtCore.QRect(1499, 170, 402, 331)
+    screen = MagicMock()
+    screen.availableGeometry.return_value = QtCore.QRect(1366, 44, 1280, 720)
+    window.layout_docks = MagicMock(return_value=[dock])
+
+    # WHEN: The title bars are checked
+    with patch('openlp.core.ui.layouts.QtGui.QGuiApplication.screenAt', return_value=screen):
+        manager.keep_title_bars_on_screen()
+
+    # THEN: It isn't moved
+    dock.setGeometry.assert_not_called()
+
+
 def test_one_monitor_default_after_two_monitors_matches_original(manager, window, qapp):
     """
     Test switching from 2 Monitor Default back to 1 Monitor Default gives the original OpenLP arrangement:

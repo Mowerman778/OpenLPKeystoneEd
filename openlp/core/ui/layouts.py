@@ -44,6 +44,8 @@ TWO_MONITOR_DEFAULT = '2 Monitor Default'
 BUILT_IN_LAYOUTS = (ONE_MONITOR_DEFAULT, TWO_MONITOR_DEFAULT)
 # Slide list positions in the Preview and Live panels, in the order shown in Layout Setup Mode
 LIST_POSITIONS = (SLIDE_LIST_TOP, SLIDE_LIST_RIGHT)
+# A point on a window's title bar, from its top left corner: if it is off the screen the window can't be dragged
+TITLE_BAR_SPOT = QtCore.QPoint(60, 10)
 
 
 def operator_screens():
@@ -311,6 +313,7 @@ class LayoutManager(QtCore.QObject, RegistryProperties):
         self.window.set_lock_panel(not self.in_setup_mode())
         self.setup_bar.setVisible(self.in_setup_mode())
         self.refresh_layout_combo()
+        QtCore.QTimer.singleShot(300, self.keep_title_bars_on_screen)
 
     def _apply_built_in_layout(self, name):
         """
@@ -381,6 +384,7 @@ class LayoutManager(QtCore.QObject, RegistryProperties):
             QtCore.QTimer.singleShot(100, lambda: self._redraw_after_drag(dock))
             return
         self._redraw_panel(dock)
+        self.keep_title_bars_on_screen()
 
     @staticmethod
     def _redraw_panel(dock):
@@ -444,10 +448,35 @@ class LayoutManager(QtCore.QObject, RegistryProperties):
         for dock in main_window.layout_docks():
             if dock.isFloating() and not visible_area.contains(dock.geometry().center()):
                 dock.setFloating(False)
-        if not visible_area.contains(main_window.frameGeometry().topLeft() + QtCore.QPoint(60, 10)):
+        if not visible_area.contains(main_window.frameGeometry().topLeft() + TITLE_BAR_SPOT):
             main_window.showNormal()
             main_window.setGeometry(operator_screens()[0].availableGeometry())
             main_window.showMaximized()
+
+    def keep_title_bars_on_screen(self):
+        """
+        A floating panel's title bar sits above its contents. If the panel is at the very top of a monitor, the title
+        bar can end up off the screen, and then the panel can't be dragged. Move such panels down (and shrink them if
+        needed) so the whole window is on the screen.
+        """
+        for dock in self.window.layout_docks():
+            if not dock.isFloating() or not dock.isVisible():
+                continue
+            screen = QtGui.QGuiApplication.screenAt(dock.geometry().center())
+            if not screen:
+                continue
+            area = screen.availableGeometry()
+            frame = dock.frameGeometry()
+            inside = dock.geometry()
+            if area.contains(frame.topLeft() + TITLE_BAR_SPOT):
+                continue
+            left_border = inside.left() - frame.left()
+            title_height = inside.top() - frame.top()
+            bottom_border = frame.bottom() - inside.bottom()
+            left = max(inside.left(), area.left() + left_border)
+            top = max(inside.top(), area.top() + title_height)
+            height = min(inside.height(), area.bottom() - bottom_border - top + 1)
+            dock.setGeometry(left, top, inside.width(), height)
 
     def on_screens_changed(self):
         """
@@ -486,6 +515,8 @@ class LayoutManager(QtCore.QObject, RegistryProperties):
         self.setup_bar.show()
         self.setup_mode_action.setChecked(True)
         self.refresh_layout_combo()
+        # The title bars only appear now: wait for Windows to add them, then make sure they can be reached
+        QtCore.QTimer.singleShot(300, self.keep_title_bars_on_screen)
 
     def leave_setup_mode(self):
         """
