@@ -24,6 +24,7 @@ This module contains tests for the lib submodule of the Presentations plugin.
 from pathlib import Path
 from unittest.mock import MagicMock, PropertyMock, call, patch
 
+import pytest
 from PyQt5 import QtCore, QtWidgets
 
 from openlp.core.lib import ServiceItemContext
@@ -235,3 +236,56 @@ def test_search_not_found(mock_setup, mock_item, registry):
 
     # THEN: a file should be found
     assert result == [], 'The result file should be empty'
+
+
+@patch('openlp.plugins.presentations.lib.mediaitem.QtWidgets.QMessageBox.warning')
+@patch('openlp.plugins.presentations.lib.mediaitem.get_slides_with_video', return_value=[2, 5])
+def test_warn_about_slide_videos(mocked_get_slides_with_video, mocked_warning, media_item):
+    """Adding a presentation with videos tells the user which slides, and how to attach the videos in OpenLP"""
+    # GIVEN: A presentation with videos on slides 2 and 5
+    # WHEN: The warning is checked for
+    media_item.warn_about_slide_videos(Path('deck.pptx'))
+
+    # THEN: The user is warned about those slides
+    message = mocked_warning.call_args[0][2]
+    assert 'deck.pptx has a video on slide(s) 2, 5.' in message
+    assert 'Attach Video' in message
+
+
+@patch('openlp.plugins.presentations.lib.mediaitem.QtWidgets.QMessageBox.warning')
+@patch('openlp.plugins.presentations.lib.mediaitem.get_slides_with_video', return_value=[])
+def test_warn_about_slide_videos_none(mocked_get_slides_with_video, mocked_warning, media_item):
+    """A presentation without videos gives no warning"""
+    # GIVEN: A presentation without videos
+    # WHEN: The warning is checked for
+    media_item.warn_about_slide_videos(Path('deck.pptx'))
+
+    # THEN: There is no warning
+    mocked_warning.assert_not_called()
+
+
+@pytest.mark.parametrize('controller_name, is_initial_load, is_warned', [
+    ('Impress', False, True),
+    ('Impress', True, False),
+    ('Powerpoint', False, False)])
+@patch('openlp.plugins.presentations.lib.mediaitem.is_win', return_value=True)
+@patch('openlp.plugins.presentations.lib.mediaitem.validate_thumb', return_value=True)
+@patch('openlp.plugins.presentations.lib.mediaitem.build_icon')
+@patch('openlp.plugins.presentations.lib.mediaitem.QtWidgets.QTreeWidgetItem')
+def test_load_item_warns_about_videos_for_impress(MockTreeWidgetItem, mocked_build_icon, mocked_validate_thumb,
+                                                  mocked_is_win,
+                                                  controller_name, is_initial_load, is_warned, media_item,
+                                                  tmp_path: Path):
+    """Only presentations newly added for LibreOffice are checked for videos; PowerPoint plays them fine"""
+    # GIVEN: A presentation file and its controller
+    deck = tmp_path / 'deck.pptx'
+    deck.write_bytes(b'deck')
+    media_item.find_controller_by_type = MagicMock(return_value=controller_name)
+    media_item.controllers = {controller_name: MagicMock()}
+    media_item.warn_about_slide_videos = MagicMock()
+
+    # WHEN: The presentation is loaded into the library
+    media_item.load_item(MagicMock(file_path=deck), is_initial_load)
+
+    # THEN: It is checked for videos only when newly added for LibreOffice
+    assert media_item.warn_about_slide_videos.called is is_warned

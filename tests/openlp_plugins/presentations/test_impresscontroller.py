@@ -22,12 +22,13 @@
 Functional tests to test the Impress class and related methods.
 """
 import pytest
+import zipfile
 from pathlib import Path
 from unittest.mock import MagicMock, call, patch
 
 from openlp.core.common.platform import is_win
 from openlp.plugins.presentations.lib.impresscontroller import ImpressController, ImpressDocument, TextType, \
-    get_com_soffice_path
+    get_com_soffice_path, get_slides_with_video
 from tests.utils.constants import RESOURCE_PATH
 
 
@@ -185,6 +186,45 @@ def test_kill_when_office_has_died(mocked_is_win, settings, mock_plugin):
 
     # THEN: No exception is raised and LibreOffice is not asked to terminate
     desktop.terminate.assert_not_called()
+
+
+def test_get_com_desktop_when_office_has_died(settings, mock_plugin):
+    """
+    Test that get_com_desktop() returns None when LibreOffice has closed, so the caller can start it again
+    """
+    # GIVEN: An ImpressController whose LibreOffice was started but has since closed
+    controller = ImpressController(plugin=mock_plugin)
+    controller.manager = MagicMock()
+    controller.manager.createInstance.side_effect = AttributeError('com.sun.star.ServiceManager.createInstance')
+    controller.office_started = True
+    controller.conf_provider = MagicMock()
+    controller.toggle_presentation_screen = MagicMock()
+
+    # WHEN: The desktop is asked for
+    desktop = controller.get_com_desktop()
+
+    # THEN: None is returned without touching the dead connection, and LibreOffice may be started again
+    assert desktop is None
+    controller.toggle_presentation_screen.assert_not_called()
+    assert controller.office_started is False
+    assert controller.conf_provider is None
+
+
+def test_is_active_when_office_has_died(doc):
+    """
+    Test that is_active() returns False, rather than raising, when LibreOffice crashed during the slide show
+    """
+    # GIVEN: A loaded presentation whose LibreOffice no longer answers
+    doc.is_loaded = MagicMock(return_value=True)
+    doc.control = MagicMock()
+    doc.control.isRunning.side_effect = Exception('The RPC server is unavailable.')
+
+    # WHEN: The slide show is polled
+    result = doc.is_active()
+
+    # THEN: It is not active, and the dead slide show is forgotten
+    assert result is False
+    assert doc.control is None
 
 
 @pytest.mark.skipif(not is_win(), reason='Uses the Windows registry')
@@ -466,3 +506,86 @@ def _get_page_shape_side_effect(*args):
     else:
         page_shape.getString.return_value = 'String'
     return page_shape
+
+
+def _make_pptx(file_path, slide_rel_types):
+    """
+    Write a minimal .pptx whose slides are listed in reverse file order, so the slide numbers come from the
+    presentation's slide list and not from the file names
+
+    :param slide_rel_types: For each slide, in show order, the relationship types of its parts
+    """
+    rels_ns = 'http://schemas.openxmlformats.org/package/2006/relationships'
+    office_rels = 'http://schemas.openxmlformats.org/officeDocument/2006/relationships'
+    count = len(slide_rel_types)
+    with zipfile.ZipFile(file_path, 'w') as package:
+        ids = ''.join('<p:sldId id="{n}" r:id="rId{n}"/>'.format(n=256 + n) for n in range(count))
+        presentation = '<p:presentation xmlns:p="http://schemas.openxmlformats.org/presentationml/2006/main" ' \
+            'xmlns:r="{rels}"><p:sldIdLst>{ids}</p:sldIdLst></p:presentation>'
+        package.writestr('ppt/presentation.xml', presentation.format(rels=office_rels, ids=ids))
+        rels = ''.join('<Relationship Id="rId{n}" Type="{rels}/slide" Target="slides/slide{file}.xml"/>'.format(
+            n=256 + n, rels=office_rels, file=count - n) for n in range(count))
+        package.writestr('ppt/_rels/presentation.xml.rels', '<Relationships xmlns="{ns}">{rels}</Relationships>'.format(
+            ns=rels_ns, rels=rels))
+        for n, rel_types in enumerate(slide_rel_types):
+            slide_rels = ''.join('<Relationship Id="rId{i}" Type="{type}" Target="../media/media{i}.mp4"/>'.format(
+                i=i, type=rel_type) for i, rel_type in enumerate(rel_types, 1))
+            package.writestr('ppt/slides/slide{file}.xml'.format(file=count - n), '<p:sld/>')
+            package.writestr('ppt/slides/_rels/slide{file}.xml.rels'.format(file=count - n),
+                             '<Relationships xmlns="{ns}">{rels}</Relationships>'.format(ns=rels_ns, rels=slide_rels))
+
+
+def test_get_slides_with_video_pptx(tmp_path: Path):
+    """Slides with a video are found in show order; audio and pictures are ignored"""
+    # GIVEN: A .pptx with a video on slide 2, audio on slide 3 and a picture on slide 1
+    office_rels = 'http://schemas.openxmlformats.org/officeDocument/2006/relationships'
+    deck = tmp_path / 'deck.pptx'
+    _make_pptx(deck, [[office_rels + '/image'],
+                      [office_rels + '/video', 'http://schemas.microsoft.com/office/2007/relationships/media'],
+                      [office_rels + '/audio', 'http://schemas.microsoft.com/office/2007/relationships/media']])
+
+    # WHEN: The slides with videos are looked for
+    slides = get_slides_with_video(deck)
+
+    # THEN: Only slide 2 is found
+    assert slides == [2]
+
+
+def test_get_slides_with_video_odp(tmp_path: Path):
+    """Videos on .odp slides are found, but not audio or videos in the speaker notes"""
+    # GIVEN: An .odp with audio on slide 1, a video on slide 2 and a video in the notes of slide 3
+    deck = tmp_path / 'deck.odp'
+    page = '<draw:page>{content}</draw:page>'
+    plugin = '<draw:frame><draw:plugin xlink:href="{href}" draw:mime-type="{mime}"/></draw:frame>'
+    pages = (page.format(content=plugin.format(href='song.mp3', mime='audio/mpeg')) +
+             page.format(content=plugin.format(href='clip.mp4', mime='video/mp4')) +
+             page.format(content='<presentation:notes>{notes}</presentation:notes>'.format(
+                 notes=plugin.format(href='clip.mp4', mime='video/mp4'))))
+    with zipfile.ZipFile(deck, 'w') as package:
+        package.writestr('content.xml',
+                         '<office:document-content xmlns:office="urn:oasis:names:tc:opendocument:xmlns:office:1.0" '
+                         'xmlns:draw="urn:oasis:names:tc:opendocument:xmlns:drawing:1.0" '
+                         'xmlns:presentation="urn:oasis:names:tc:opendocument:xmlns:presentation:1.0" '
+                         'xmlns:xlink="http://www.w3.org/1999/xlink"><office:body><office:presentation>{pages}'
+                         '</office:presentation></office:body></office:document-content>'.format(pages=pages))
+
+    # WHEN: The slides with videos are looked for
+    slides = get_slides_with_video(deck)
+
+    # THEN: Only slide 2 is found
+    assert slides == [2]
+
+
+@pytest.mark.parametrize('name, content', [('deck.ppt', b'not a zip'), ('deck.pptx', b'not a zip'),
+                                           ('deck.pdf', b'%PDF')])
+def test_get_slides_with_video_unreadable(name, content, tmp_path: Path):
+    """Files that are not zip packages, or are of other types, have no videos found"""
+    # GIVEN: A file that is not a .pptx or .odp package
+    deck = tmp_path / name
+    deck.write_bytes(content)
+
+    # WHEN: The slides with videos are looked for
+    slides = get_slides_with_video(deck)
+
+    # THEN: None are found
+    assert slides == []

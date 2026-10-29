@@ -31,9 +31,12 @@
 # http://nxsy.org/comparing-documents-with-openoffice-and-python
 
 import logging
+import posixpath
 import subprocess
 import time
+import zipfile
 from pathlib import Path
+from xml.etree import ElementTree
 
 from PyQt5 import QtCore
 
@@ -99,6 +102,81 @@ def get_com_soffice_path():
         exe = command.split(' --', 1)[0].split(' -', 1)[0]
     path = Path(exe)
     return path if path.is_file() else None
+
+
+PACKAGE_RELS_NS = '{http://schemas.openxmlformats.org/package/2006/relationships}'
+PPTX_MAIN_NS = '{http://schemas.openxmlformats.org/presentationml/2006/main}'
+PPTX_RELS_ID = '{http://schemas.openxmlformats.org/officeDocument/2006/relationships}id'
+ODF_DRAW_NS = '{urn:oasis:names:tc:opendocument:xmlns:drawing:1.0}'
+ODF_PRESENTATION_NS = '{urn:oasis:names:tc:opendocument:xmlns:presentation:1.0}'
+ODF_XLINK_HREF = '{http://www.w3.org/1999/xlink}href'
+
+
+def _read_pptx_rels(package, part_name):
+    """
+    :return: {relationship id: (type, target)} for a part of a .pptx, with targets resolved inside the package
+    """
+    folder, name = posixpath.split(part_name)
+    try:
+        root = ElementTree.fromstring(package.read(posixpath.join(folder, '_rels', name + '.rels')))
+    except KeyError:
+        return {}
+    rels = {}
+    for rel in root.iter(PACKAGE_RELS_NS + 'Relationship'):
+        target = rel.get('Target', '')
+        if rel.get('TargetMode') != 'External':
+            target = posixpath.normpath(posixpath.join(folder, target))
+        rels[rel.get('Id')] = (rel.get('Type', ''), target)
+    return rels
+
+
+def _get_pptx_slides_with_video(package):
+    presentation_rels = _read_pptx_rels(package, 'ppt/presentation.xml')
+    slide_list = ElementTree.fromstring(package.read('ppt/presentation.xml')).find(PPTX_MAIN_NS + 'sldIdLst')
+    slides = []
+    for number, slide_id in enumerate(slide_list if slide_list is not None else [], 1):
+        slide_part = presentation_rels.get(slide_id.get(PPTX_RELS_ID), ('', ''))[1]
+        if any(rel_type.endswith('/video') for rel_type, _ in _read_pptx_rels(package, slide_part).values()):
+            slides.append(number)
+    return slides
+
+
+def _get_odp_slides_with_video(package):
+    from openlp.core.ui.media import VIDEO_EXT
+    video_suffixes = {ext[1:] for ext in VIDEO_EXT}
+    slides = []
+    for number, page in enumerate(ElementTree.fromstring(package.read('content.xml')).iter(ODF_DRAW_NS + 'page'), 1):
+        # Media in the speaker notes is never played
+        notes = page.find(ODF_PRESENTATION_NS + 'notes')
+        notes_plugins = set(notes.iter(ODF_DRAW_NS + 'plugin')) if notes is not None else set()
+        for plugin in page.iter(ODF_DRAW_NS + 'plugin'):
+            if plugin in notes_plugins:
+                continue
+            if plugin.get(ODF_DRAW_NS + 'mime-type', '').startswith('video/') or \
+                    Path(plugin.get(ODF_XLINK_HREF, '')).suffix.lower() in video_suffixes:
+                slides.append(number)
+                break
+    return slides
+
+
+def get_slides_with_video(file_path):
+    """
+    Find the slides of a .pptx or .odp file that hold a video, embedded or linked. LibreOffice can crash or garble the
+    picture when it plays them, so the videos should be attached to the slides in OpenLP instead.
+
+    :param Path file_path: The presentation
+    :return: The slide numbers, counting from 1. Empty for other file types or files that cannot be read.
+    :rtype: list[int]
+    """
+    try:
+        with zipfile.ZipFile(file_path) as package:
+            if file_path.suffix.lower() in ('.pptx', '.pptm', '.ppsx', '.ppsm'):
+                return _get_pptx_slides_with_video(package)
+            if file_path.suffix.lower() in ('.odp', '.otp'):
+                return _get_odp_slides_with_video(package)
+    except (OSError, KeyError, zipfile.BadZipFile, ElementTree.ParseError):
+        log.exception('Could not look for videos in {path}'.format(path=file_path))
+    return []
 
 
 class ImpressController(PresentationController):
@@ -190,8 +268,13 @@ class ImpressController(PresentationController):
             desktop = self.manager.createInstance('com.sun.star.frame.Desktop')
         except (AttributeError, pywintypes.com_error):
             log.warning('Failure to find desktop - Impress may have closed')
+        if not desktop:
+            # LibreOffice closed or crashed, so the old connection is dead: let it be started again with --norestore
+            self.office_started = False
+            self.conf_provider = None
+            return None
         self.toggle_presentation_screen(False)
-        return desktop if desktop else None
+        return desktop
 
     def get_com_servicemanager(self):
         """
@@ -477,7 +560,21 @@ class ImpressDocument(PresentationDocument):
         log.debug('is active OpenOffice')
         if not self.is_loaded():
             return False
-        return self.control.isRunning() if self.control else False
+        return self.is_control_running()
+
+    def is_control_running(self):
+        """
+        Returns true if the slide show is running. LibreOffice may have crashed (e.g. playing a video), so a dead
+        connection means it is not running.
+        """
+        if not self.control:
+            return False
+        try:
+            return self.control.isRunning()
+        except Exception:
+            log.warning('Slide show is not answering - Impress may have closed')
+            self.control = None
+            return False
 
     def unblank_screen(self):
         """
@@ -498,7 +595,7 @@ class ImpressDocument(PresentationDocument):
         Returns true if screen is blank.
         """
         log.debug('is blank OpenOffice')
-        if self.control and self.control.isRunning():
+        if self.is_control_running():
             return self.control.isPaused()
         return False
 
@@ -515,7 +612,7 @@ class ImpressDocument(PresentationDocument):
         Start the presentation from the beginning.
         """
         log.debug('start presentation OpenOffice')
-        if self.control is None or not self.control.isRunning():
+        if not self.is_control_running():
             window = self.document.getCurrentController().getFrame().getContainerWindow()
             window.setVisible(True)
             self.presentation.start()

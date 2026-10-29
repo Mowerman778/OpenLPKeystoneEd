@@ -27,6 +27,7 @@ from pathlib import Path
 
 from openlp.core.common import sha256_file_hash
 from openlp.core.common.i18n import UiStrings, translate
+from openlp.core.common.platform import is_win
 from openlp.core.common.registry import Registry
 from openlp.core.lib import ServiceItemContext, build_icon, create_thumb, validate_thumb
 from openlp.core.lib.serviceitem import ItemCapabilities, ServiceItem
@@ -35,6 +36,7 @@ from openlp.core.ui.icons import UiIcons
 from openlp.core.ui.library import FolderLibraryItem
 
 from openlp.plugins.presentations.lib.db import Folder, Item
+from openlp.plugins.presentations.lib.impresscontroller import get_slides_with_video
 from openlp.plugins.presentations.lib.messagelistener import MessageListener
 from openlp.plugins.presentations.lib.pdfcontroller import PDF_CONTROLLER_FILETYPES
 
@@ -196,6 +198,8 @@ class PresentationMediaItem(FolderLibraryItem):
                     doc.load_presentation()
                     preview_path = doc.get_thumbnail_path(1, True)
                 doc.close_presentation()
+                if not is_initial_load and controller_name == 'Impress' and is_win():
+                    self.warn_about_slide_videos(file_path)
                 if not (preview_path and preview_path.exists()):
                     icon = UiIcons().delete
                 else:
@@ -216,6 +220,26 @@ class PresentationMediaItem(FolderLibraryItem):
             tree_item.setIcon(0, icon)
             tree_item.setToolTip(0, str(file_path))
         return tree_item
+
+    def warn_about_slide_videos(self, file_path):
+        """
+        LibreOffice on Windows crashes or garbles the picture when it plays a video in a slide show, so tell the user to
+        take the videos out and attach them to the slides in OpenLP instead.
+
+        :param Path file_path: The presentation just added
+        """
+        slides = get_slides_with_video(file_path)
+        if not slides:
+            return
+        QtWidgets.QMessageBox.warning(
+            self, translate('PresentationPlugin.MediaItem', 'Presentation Has Videos'),
+            translate('PresentationPlugin.MediaItem',
+                      '{name} has a video on slide(s) {slides}.\n\n'
+                      'LibreOffice can crash or show a garbled picture when it plays videos. To show them safely:\n'
+                      '1. Delete the videos from the presentation and save it.\n'
+                      '2. Add the presentation to the service.\n'
+                      '3. In the Service Manager, expand it, right-click each of those slides and choose '
+                      'Attach Video.').format(name=file_path.name, slides=', '.join(str(slide) for slide in slides)))
 
     def delete_item(self, item):
         """
