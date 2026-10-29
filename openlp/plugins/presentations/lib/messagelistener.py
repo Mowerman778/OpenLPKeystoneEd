@@ -396,6 +396,7 @@ class MessageListener(object):
         slide = message[2]
         if is_live:
             self.live_handler.slide(slide)
+            self.resume_polling()
         else:
             self.preview_handler.slide(slide)
 
@@ -408,6 +409,7 @@ class MessageListener(object):
         is_live = message[1]
         if is_live:
             self.live_handler.first()
+            self.resume_polling()
         else:
             self.preview_handler.first()
 
@@ -420,6 +422,7 @@ class MessageListener(object):
         is_live = message[1]
         if is_live:
             self.live_handler.last()
+            self.resume_polling()
         else:
             self.preview_handler.last()
 
@@ -432,6 +435,7 @@ class MessageListener(object):
         is_live = message[1]
         if is_live:
             ret = self.live_handler.next()
+            self.resume_polling()
             if Registry().get('settings').value('core/click live slide to unblank'):
                 Registry().execute('slidecontroller_live_unblank')
             return ret
@@ -447,6 +451,7 @@ class MessageListener(object):
         is_live = message[1]
         if is_live:
             ret = self.live_handler.previous()
+            self.resume_polling()
             if Registry().get('settings').value('core/click live slide to unblank'):
                 Registry().execute('slidecontroller_live_unblank')
             return ret
@@ -496,6 +501,16 @@ class MessageListener(object):
         is_live = message[1]
         if is_live:
             self.live_handler.unblank()
+            self.resume_polling()
+
+    def resume_polling(self):
+        """
+        The live presentation can be reopened after a shutdown, e.g. when the same presentation is sent live again,
+        which stops the timer without starting it again. Restart it so slide changes made in the presentation are
+        followed.
+        """
+        if self.live_handler.doc and not self.timer.isActive():
+            self.timer.start()
 
     def timeout(self):
         """

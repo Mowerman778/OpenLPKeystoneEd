@@ -21,6 +21,7 @@
 """
 This module contains tests for the lib submodule of the Presentations plugin.
 """
+import pytest
 from unittest.mock import MagicMock, patch
 
 from openlp.plugins.presentations.lib.mediaitem import MessageListener
@@ -130,3 +131,24 @@ def test_add_handler_failure():
 
     # THEN: ui_slidenumber should be 0
     assert controller.doc.ui_slidenumber == 0, 'doc.ui_slidenumber should be 0'
+
+
+@pytest.mark.parametrize('is_active, has_doc, is_started', [(False, True, True), (True, True, False),
+                                                            (False, False, False)])
+@patch('openlp.plugins.presentations.lib.mediaitem.MessageListener._setup')
+def test_unblank_resumes_polling(mocked_setup, is_active, has_doc, is_started, media_item):
+    """
+    Sending the same presentation live again shuts it down, which stops the timer, and then reopens it on unblank.
+    The timer must start again, or slide changes made in the presentation are not followed.
+    """
+    # GIVEN: A live presentation whose timer may have been stopped
+    ml = MessageListener(media_item)
+    ml.live_handler = MagicMock(doc=MagicMock() if has_doc else None)
+    ml.timer = MagicMock()
+    ml.timer.isActive.return_value = is_active
+
+    # WHEN: The live presentation is unblanked
+    ml.unblank([MagicMock(), True])
+
+    # THEN: The timer is started only when it was stopped and there is a presentation
+    assert ml.timer.start.called is is_started
