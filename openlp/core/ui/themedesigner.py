@@ -109,6 +109,65 @@ def resize_rect(rect, handle, delta, bounds):
     return QtCore.QRect(QtCore.QPoint(left, top), QtCore.QPoint(right, bottom))
 
 
+def box_handle_rects(view):
+    """
+    The sizing handles on the corners and edges of a box
+
+    :param QtCore.QRectF view: The box, in widget coordinates
+    :return: {handle name: QRectF}
+    """
+    half = HANDLE_SIZE / 2
+    xs = {'left': view.left(), 'middle': view.center().x(), 'right': view.right()}
+    ys = {'top': view.top(), 'middle': view.center().y(), 'bottom': view.bottom()}
+    spots = {'top_left': ('left', 'top'), 'top': ('middle', 'top'), 'top_right': ('right', 'top'),
+             'right': ('right', 'middle'), 'bottom_right': ('right', 'bottom'), 'bottom': ('middle', 'bottom'),
+             'bottom_left': ('left', 'bottom'), 'left': ('left', 'middle')}
+    return {handle: QtCore.QRectF(xs[x] - half, ys[y] - half, HANDLE_SIZE, HANDLE_SIZE)
+            for handle, (x, y) in spots.items()}
+
+
+def box_move_grip_rect(view):
+    """
+    The square in the middle of a box that shows where to grab it to move it
+
+    :param QtCore.QRectF view: The box, in widget coordinates
+    """
+    rect = QtCore.QRectF(0, 0, MOVE_GRIP_SIZE, MOVE_GRIP_SIZE)
+    rect.moveCenter(view.center())
+    return rect
+
+
+def paint_box_handles(painter, view, colour):
+    """
+    White sizing handles on the corners and edges of a box, and the move square in its middle
+    """
+    painter.setPen(QtGui.QPen(colour.darker(150), 1))
+    painter.setBrush(QtCore.Qt.white)
+    for rect in box_handle_rects(view).values():
+        painter.drawRect(rect)
+    paint_move_grip(painter, box_move_grip_rect(view), colour)
+    painter.setBrush(QtCore.Qt.NoBrush)
+
+
+def paint_move_grip(painter, rect, colour):
+    """
+    A square with a four-way arrow: grab it to move the box
+    """
+    painter.setPen(QtGui.QPen(colour.darker(150), 1))
+    painter.setBrush(colour)
+    painter.drawRect(rect)
+    painter.setPen(QtGui.QPen(QtCore.Qt.white, 2))
+    centre = rect.center()
+    arm = MOVE_GRIP_SIZE / 2 - 4
+    tip = 3
+    for dx, dy in ((1, 0), (-1, 0), (0, 1), (0, -1)):
+        end = QtCore.QPointF(centre.x() + dx * arm, centre.y() + dy * arm)
+        painter.drawLine(centre, end)
+        # Arrow head
+        painter.drawLine(end, QtCore.QPointF(end.x() - dx * tip + dy * tip, end.y() - dy * tip + dx * tip))
+        painter.drawLine(end, QtCore.QPointF(end.x() - dx * tip - dy * tip, end.y() - dy * tip - dx * tip))
+
+
 class AreaOverlay(QtWidgets.QWidget):
     """
     Drawn over the slide preview: the dashed text area boxes, with handles on the selected one
@@ -134,23 +193,10 @@ class AreaOverlay(QtWidgets.QWidget):
         return QtCore.QRectF(rect.x() * scale, rect.y() * scale, rect.width() * scale, rect.height() * scale)
 
     def handle_rects(self, area):
-        view = self.to_view(self.areas[area])
-        half = HANDLE_SIZE / 2
-        xs = {'left': view.left(), 'middle': view.center().x(), 'right': view.right()}
-        ys = {'top': view.top(), 'middle': view.center().y(), 'bottom': view.bottom()}
-        spots = {'top_left': ('left', 'top'), 'top': ('middle', 'top'), 'top_right': ('right', 'top'),
-                 'right': ('right', 'middle'), 'bottom_right': ('right', 'bottom'), 'bottom': ('middle', 'bottom'),
-                 'bottom_left': ('left', 'bottom'), 'left': ('left', 'middle')}
-        return {handle: QtCore.QRectF(xs[x] - half, ys[y] - half, HANDLE_SIZE, HANDLE_SIZE)
-                for handle, (x, y) in spots.items()}
+        return box_handle_rects(self.to_view(self.areas[area]))
 
     def move_grip_rect(self, area):
-        """
-        The square in the middle of a box that shows where to grab it to move it
-        """
-        rect = QtCore.QRectF(0, 0, MOVE_GRIP_SIZE, MOVE_GRIP_SIZE)
-        rect.moveCenter(self.to_view(self.areas[area]).center())
-        return rect
+        return box_move_grip_rect(self.to_view(self.areas[area]))
 
     def hit_test(self, pos):
         """
@@ -200,32 +246,7 @@ class AreaOverlay(QtWidgets.QWidget):
             painter.fillRect(tag, colour)
             painter.setPen(QtCore.Qt.white)
             painter.drawText(tag, QtCore.Qt.AlignCenter, text)
-            # Sizing handles on the edges and corners
-            painter.setPen(QtGui.QPen(colour.darker(150), 1))
-            painter.setBrush(QtCore.Qt.white)
-            for rect in self.handle_rects(area).values():
-                painter.drawRect(rect)
-            self._paint_move_grip(painter, area, colour)
-            painter.setBrush(QtCore.Qt.NoBrush)
-
-    def _paint_move_grip(self, painter, area, colour):
-        """
-        A square with a four-way arrow in the middle of the box: grab it to move the box
-        """
-        rect = self.move_grip_rect(area)
-        painter.setPen(QtGui.QPen(colour.darker(150), 1))
-        painter.setBrush(colour)
-        painter.drawRect(rect)
-        painter.setPen(QtGui.QPen(QtCore.Qt.white, 2))
-        centre = rect.center()
-        arm = MOVE_GRIP_SIZE / 2 - 4
-        tip = 3
-        for dx, dy in ((1, 0), (-1, 0), (0, 1), (0, -1)):
-            end = QtCore.QPointF(centre.x() + dx * arm, centre.y() + dy * arm)
-            painter.drawLine(centre, end)
-            # Arrow head
-            painter.drawLine(end, QtCore.QPointF(end.x() - dx * tip + dy * tip, end.y() - dy * tip + dx * tip))
-            painter.drawLine(end, QtCore.QPointF(end.x() - dx * tip - dy * tip, end.y() - dy * tip - dx * tip))
+            paint_box_handles(painter, view, colour)
 
     def mousePressEvent(self, event):
         if event.button() != QtCore.Qt.LeftButton:

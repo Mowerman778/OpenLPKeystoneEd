@@ -202,6 +202,8 @@ class DisplayWindow(QtWidgets.QWidget, RegistryProperties, LogMixin):
         self.is_display = False
         self.scale = 1
         self.hide_mode = None
+        # A widget laid over this one, such as the Live panel's video clip boxes, kept on top when this is raised
+        self.cover = None
         self.__script_done = True
         self.__script_result = None
         if screen and screen.is_display:
@@ -481,6 +483,8 @@ class DisplayWindow(QtWidgets.QWidget, RegistryProperties, LogMixin):
         else:
             self.webview.page().runJavaScript(script)
         self.raise_()
+        if self.cover is not None and self.cover.isVisible():
+            self.cover.raise_()
 
     def go_to_slide(self, verse):
         """

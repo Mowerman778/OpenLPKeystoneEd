@@ -19,22 +19,20 @@
 # along with this program.  If not, see <https://www.gnu.org/licenses/>. #
 ##########################################################################
 """
-Plays the video attached to a presentation slide, full screen on top of the running presentation.
+Plays the video clips attached to a presentation slide, full screen on top of the running presentation.
 
-LibreOffice crashes or garbles video in slide shows on Windows, so the video is left out of the presentation and
-attached to the slide in OpenLP instead. The presentation keeps running underneath, so when the video ends or is
-stopped the window is hidden and the slide is on screen again.
+LibreOffice crashes or garbles video in slide shows on Windows, so the videos are left out of the presentation and
+attached to the slide in OpenLP instead, with the Video Trigger Manager. The presentation keeps running underneath, so
+when a clip ends or is stopped the window is hidden and the slide is on screen again.
 
-While the slide is showing and its video is not playing, a small film strip icon sits in the corner of the screen.
-Clicking it plays the video, so the slide can be talked about before and after it.
+The operator plays a clip by clicking its box in the Live panel, or one clip per slide plays as soon as the slide is
+shown.
 """
 import logging
 import threading
 
-import qtawesome as qta
 from PyQt5 import QtCore, QtWidgets
 
-from openlp.core.common.i18n import translate
 from openlp.core.common.mixins import LogMixin, RegistryProperties
 from openlp.core.common.platform import is_macosx, is_win
 from openlp.core.display.screens import ScreenList
@@ -42,55 +40,15 @@ from openlp.core.display.screens import ScreenList
 
 log = logging.getLogger(__name__)
 
-TRIGGER_SIZE = 25
-TRIGGER_MARGIN = 10
-TRIGGER_OPACITY = 0.6
-
-
-class SlideVideoTrigger(QtWidgets.QToolButton):
-    """
-    A small film strip button that floats over the presentation, in the bottom right corner of the display screen.
-    It does not take the focus, so the presentation keeps its keyboard and clicker control.
-    """
-    def __init__(self, parent=None):
-        super().__init__(parent)
-        self.setWindowFlags(QtCore.Qt.FramelessWindowHint | QtCore.Qt.WindowType.Tool |
-                            QtCore.Qt.WindowStaysOnTopHint | QtCore.Qt.WindowDoesNotAcceptFocus)
-        self.setAttribute(QtCore.Qt.WA_ShowWithoutActivating)
-        self.setFocusPolicy(QtCore.Qt.NoFocus)
-        self.setCursor(QtCore.Qt.PointingHandCursor)
-        self.setToolTip(translate('OpenLP.SlideVideo', 'Play the video'))
-        self.setIcon(qta.icon('mdi.filmstrip', color='white'))
-        self.setIconSize(QtCore.QSize(TRIGGER_SIZE - 6, TRIGGER_SIZE - 6))
-        self.setFixedSize(TRIGGER_SIZE, TRIGGER_SIZE)
-        self.setStyleSheet('QToolButton { background-color: black; border: 1px solid grey; border-radius: 3px; }')
-        self.setWindowOpacity(TRIGGER_OPACITY)
-
-    def show_on_screen(self):
-        """
-        Place the icon in the bottom right corner of the display screen and show it.
-        """
-        screen = ScreenList().current.display_geometry
-        self.move(screen.right() - TRIGGER_MARGIN - TRIGGER_SIZE, screen.bottom() - TRIGGER_MARGIN - TRIGGER_SIZE)
-        self.show()
-        self.raise_()
-
-    def enterEvent(self, event):
-        self.setWindowOpacity(1.0)
-        super().enterEvent(event)
-
-    def leaveEvent(self, event):
-        self.setWindowOpacity(TRIGGER_OPACITY)
-        super().leaveEvent(event)
-
 
 class SlideVideoPlayer(QtCore.QObject, LogMixin, RegistryProperties):
     """
-    A frameless, stay-on-top window covering the display screen, with its own VLC player, and the trigger icon that
-    plays the video of the slide being shown
+    A frameless, stay-on-top window covering the display screen, with its own VLC player
     """
     # VLC reports the end of the video on its own thread, so it is passed to the Qt thread through this signal
     ended = QtCore.pyqtSignal()
+    # The clip now playing, or None when stopped
+    playing_changed = QtCore.pyqtSignal(object)
 
     def __init__(self, parent=None):
         super().__init__(parent)
@@ -99,52 +57,29 @@ class SlideVideoPlayer(QtCore.QObject, LogMixin, RegistryProperties):
         self.vlc_instance = None
         self.vlc_player = None
         self.current_path = None
-        self.slide_path = None
-        self.trigger = None
+        self.slide_paths = []
         self.ended.connect(self.on_ended)
 
-    def show_slide(self, file_path, autoplay):
+    def show_slide(self, clip_paths, autoplay_path=None):
         """
-        A slide with a video is being shown: play the video now, or show the trigger icon to play it on a click.
+        A slide with video clips is being shown: play its autoplay clip, if it has one. A clip of another slide that is
+        still playing is stopped.
 
-        :param Path file_path: The slide's video
-        :param bool autoplay: True to play the video straight away
+        :param list[Path] clip_paths: The slide's clips
+        :param Path | None autoplay_path: The clip to play straight away
         """
-        self.slide_path = file_path
-        if autoplay:
-            self.play(file_path)
-        else:
-            # Stopping another slide's video also shows the trigger icon
-            if self.current_path != file_path:
-                self.stop()
-            else:
-                self._update_trigger()
+        self.slide_paths = list(clip_paths)
+        if autoplay_path:
+            self.play(autoplay_path)
+        elif self.current_path not in self.slide_paths:
+            self.stop()
 
     def clear_slide(self):
         """
-        The slide being shown has no video, or the screen is hidden: stop any video and hide the trigger icon.
+        The slide being shown has no clips, or the screen is hidden: stop any clip.
         """
-        self.slide_path = None
+        self.slide_paths = []
         self.stop()
-
-    def on_trigger_clicked(self):
-        """
-        The trigger icon was clicked: play the video of the slide being shown.
-        """
-        if self.slide_path:
-            self.play(self.slide_path)
-
-    def _update_trigger(self):
-        """
-        Show the trigger icon while the slide being shown has a video that is not playing.
-        """
-        if self.slide_path and not self.is_playing():
-            if not self.trigger:
-                self.trigger = SlideVideoTrigger(self.parent_widget)
-                self.trigger.clicked.connect(self.on_trigger_clicked)
-            self.trigger.show_on_screen()
-        elif self.trigger:
-            self.trigger.hide()
 
     def _setup(self):
         """
@@ -213,21 +148,20 @@ class SlideVideoPlayer(QtCore.QObject, LogMixin, RegistryProperties):
         self.window.setGeometry(ScreenList().current.display_geometry)
         self.window.show()
         self.window.raise_()
-        self._update_trigger()
+        self.playing_changed.emit(file_path)
         # VLC can block if started or stopped on the Qt thread, which is why OpenLP's VLC player uses threads too
         threading.Thread(target=self.vlc_player.play).start()
 
     def stop(self):
         """
-        Stop the video, if one is playing, and hide the window so the presentation shows again. The trigger icon comes
-        back while the slide is still being shown, so the video can be played again.
+        Stop the video, if one is playing, and hide the window so the presentation shows again
         """
         if self.current_path is not None:
             self.log_debug('Stopping slide video')
             self.current_path = None
             threading.Thread(target=self.vlc_player.stop).start()
             self.window.hide()
-        self._update_trigger()
+            self.playing_changed.emit(None)
 
     def on_ended(self):
         """

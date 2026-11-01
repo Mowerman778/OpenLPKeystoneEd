@@ -249,7 +249,7 @@ def test_warn_about_slide_videos(mocked_get_slides_with_video, mocked_warning, m
     # THEN: The user is warned about those slides
     message = mocked_warning.call_args[0][2]
     assert 'deck.pptx has a video on slide(s) 2, 5.' in message
-    assert 'Attach Video' in message
+    assert 'Video Trigger Manager' in message
 
 
 @patch('openlp.plugins.presentations.lib.mediaitem.QtWidgets.QMessageBox.warning')

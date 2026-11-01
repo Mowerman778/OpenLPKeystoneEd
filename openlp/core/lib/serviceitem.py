@@ -50,6 +50,33 @@ from openlp.core.ui.media import parse_stream_path
 log = logging.getLogger(__name__)
 
 
+MAX_SLIDE_CLIPS = 10
+# Where a clip's box goes when none was saved: the bottom right corner. Boxes are fractions of the display screen.
+DEFAULT_CLIP_RECT = (0.78, 0.84, 0.2, 0.12)
+DESCRIPTION_LENGTH = 40
+
+
+def make_slide_clip(file_path, name=None, description=None, rect=None, autoplay=False):
+    """
+    Make a video clip for a presentation slide. It is played full screen when the operator clicks its box in the Live
+    panel.
+
+    :param Path file_path: The video file
+    :param str name: The file's name, shown when it is bundled in a service file under its hash
+    :param str description: The text in the box. Defaults to the file name without its suffix.
+    :param rect: The box as fractions of the display screen: (x, y, width, height)
+    :param bool autoplay: True to play the clip as soon as the slide is shown
+    :return: The clip, a dict
+    """
+    file_path = Path(file_path)
+    name = name or file_path.name
+    description = (description or Path(name).stem)[:DESCRIPTION_LENGTH]
+    if not rect or len(rect) != 4:
+        rect = DEFAULT_CLIP_RECT
+    return {'path': file_path, 'hash': None, 'name': name, 'description': description,
+            'rect': tuple(float(value) for value in rect), 'autoplay': bool(autoplay)}
+
+
 class ServiceItem(RegistryProperties):
     """
     The service item is a base class for the plugins to use to interact with
@@ -99,7 +126,8 @@ class ServiceItem(RegistryProperties):
         self.media_length = 0
         self.from_service = False
         self.background_audio = []
-        # Videos OpenLP plays itself over a presentation slide: {slide index: {'path': ..., 'hash': ..., 'name': ...}}
+        # Video clips OpenLP plays itself over a presentation slide: {slide index: [clip, ...]}, each clip a dict made
+        # by make_slide_clip()
         self.slide_videos = {}
         self.theme_overwritten = False
         self.temporary_edit = False
@@ -445,13 +473,15 @@ class ServiceItem(RegistryProperties):
             service_header['background_audio'].append(path_str)
         if self.slide_videos:
             service_header['slide_videos'] = []
-            for slide_index, video in sorted(self.slide_videos.items()):
-                if lite_save:
-                    path_str = str(video['path'])
-                else:
-                    path_str = self.get_slide_video_stored_name(slide_index)
-                service_header['slide_videos'].append({'slide': slide_index, 'file': path_str,
-                                                       'name': video['name'], 'autoplay': video['autoplay']})
+            for slide_index, clips in sorted(self.slide_videos.items()):
+                for clip in clips:
+                    if lite_save:
+                        path_str = str(clip['path'])
+                    else:
+                        path_str = self.get_clip_stored_name(clip)
+                    service_header['slide_videos'].append({'slide': slide_index, 'file': path_str,
+                                                           'name': clip['name'], 'description': clip['description'],
+                                                           'rect': list(clip['rect']), 'autoplay': clip['autoplay']})
         service_data = []
         if self.service_item_type == ServiceItemType.Text:
             for slide in self.slides:
@@ -567,10 +597,14 @@ class ServiceItem(RegistryProperties):
             file_path = Path(slide_video['file'])
             if path:
                 file_path = path / file_path
+            # Services saved before clips had boxes have one video per slide, so it gets the default box
+            clip = make_slide_clip(file_path, slide_video.get('name'), slide_video.get('description'),
+                                   slide_video.get('rect'), slide_video.get('autoplay', False))
             # Bundled files are named by their hash, so the hash is the file name without its suffix
-            self.slide_videos[slide_video['slide']] = {'path': file_path, 'hash': file_path.stem if path else None,
-                                                       'name': slide_video.get('name', file_path.name),
-                                                       'autoplay': slide_video.get('autoplay', False)}
+            clip['hash'] = file_path.stem if path else None
+            clips = self.slide_videos.setdefault(slide_video['slide'], [])
+            if len(clips) < MAX_SLIDE_CLIPS:
+                clips.append(clip)
         self.theme_overwritten = header.get('theme_overwritten', False)
         if self.service_item_type == ServiceItemType.Text:
             for slide in service_item['serviceitem']['data']:
@@ -899,63 +933,50 @@ class ServiceItem(RegistryProperties):
             for frame in self.get_frames():
                 if self.get_frame_path(frame=frame) in invalid_paths:
                     self.remove_frame(frame)
-        for slide_index, video in list(self.slide_videos.items()):
-            if str(video['path']) in (invalid_paths or []):
+        for slide_index, clips in list(self.slide_videos.items()):
+            clips[:] = [clip for clip in clips if str(clip['path']) not in (invalid_paths or [])]
+            if not clips:
                 del self.slide_videos[slide_index]
 
-    def set_slide_video(self, slide_index, file_path):
-        """
-        Attach a video for OpenLP to play when the slide is shown live, in place of the presentation.
-        The dict is changed in place, because the live controller holds a shallow copy of this item.
-
-        :param int slide_index: The slide, counting from 0
-        :param Path file_path: The video file
-        """
-        autoplay = self.slide_videos.get(slide_index, {}).get('autoplay', False)
-        self.slide_videos[slide_index] = {'path': Path(file_path), 'hash': None, 'name': Path(file_path).name,
-                                          'autoplay': autoplay}
-
-    def set_slide_video_autoplay(self, slide_index, autoplay):
+    def get_slide_clips(self, slide_index):
         """
         :param int slide_index: The slide, counting from 0
-        :param bool autoplay: True to play the video as soon as the slide is shown, False to wait for a click on the
-            trigger icon
+        :return: The slide's video clips, in the order they were added. Empty if it has none.
         """
-        if slide_index in self.slide_videos:
-            self.slide_videos[slide_index]['autoplay'] = autoplay
+        return self.slide_videos.get(slide_index, [])
 
-    def is_slide_video_autoplay(self, slide_index):
+    def set_slide_clips(self, slide_index, clips):
         """
-        :param int slide_index: The slide, counting from 0
-        :return: True if the slide's video plays as soon as the slide is shown
-        """
-        return self.slide_videos.get(slide_index, {}).get('autoplay', False)
-
-    def remove_slide_video(self, slide_index):
-        """
-        Detach the video from a slide, if it has one.
+        Replace the video clips of a slide. The dict is changed in place, because the live controller holds a shallow
+        copy of this item.
 
         :param int slide_index: The slide, counting from 0
+        :param list clips: Up to MAX_SLIDE_CLIPS clips made by make_slide_clip(). Empty removes them all.
         """
-        self.slide_videos.pop(slide_index, None)
+        if clips:
+            self.slide_videos[slide_index] = list(clips[:MAX_SLIDE_CLIPS])
+        else:
+            self.slide_videos.pop(slide_index, None)
 
-    def get_slide_video(self, slide_index):
+    def get_autoplay_clip(self, slide_index):
         """
         :param int slide_index: The slide, counting from 0
-        :return: The path of the video attached to the slide, or None
+        :return: The clip that plays as soon as the slide is shown, or None
         """
-        video = self.slide_videos.get(slide_index)
-        return video['path'] if video else None
+        for clip in self.get_slide_clips(slide_index):
+            if clip['autoplay']:
+                return clip
+        return None
 
-    def get_slide_video_stored_name(self, slide_index):
+    @staticmethod
+    def get_clip_stored_name(clip):
         """
-        :param int slide_index: The slide, counting from 0
-        :return: The name the slide's video is stored under in a service file: its sha256 hash plus its suffix
+        :param dict clip: A slide's video clip
+        :return: The name the clip's video is stored under in a service file: its sha256 hash plus its suffix
         """
-        video = self.slide_videos[slide_index]
-        if not video['hash']:
-            video['hash'] = sha256_file_hash(video['path'])
-        return '{hash}{suffix}'.format(hash=video['hash'], suffix=video['path'].suffix)
+        if not clip['hash']:
+            clip['hash'] = sha256_file_hash(clip['path'])
+        return '{hash}{suffix}'.format(hash=clip['hash'], suffix=clip['path'].suffix)
 
     def requires_audio(self):
         return self.is_capable(ItemCapabilities.HasBackgroundAudio)

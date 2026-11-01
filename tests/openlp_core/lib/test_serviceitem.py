@@ -34,7 +34,8 @@ from openlp.core.common.json import OpenLPJSONEncoder
 from openlp.core.common.platform import is_win
 from openlp.core.common.registry import Registry
 from openlp.core.lib.formattingtags import FormattingTags
-from openlp.core.lib.serviceitem import ItemCapabilities, ServiceItem
+from openlp.core.lib.serviceitem import DEFAULT_CLIP_RECT, DESCRIPTION_LENGTH, MAX_SLIDE_CLIPS, ItemCapabilities, \
+    ServiceItem, make_slide_clip
 from openlp.core.lib.theme import TransitionSpeed
 from openlp.core.state import State
 from openlp.core.ui.icons import UiIcons
@@ -1197,43 +1198,68 @@ def test_update_theme(registry: Registry, is_text: bool, is_clear_called: bool):
         service_item._clear_slides_cache.assert_not_called()
 
 
-def _make_item_with_slide_video(video_path):
-    """A two-slide text item with a video attached to the second slide"""
+def _make_item_with_slide_clip(video_path, **kwargs):
+    """A two-slide text item with a video clip on the second slide"""
     service_item = ServiceItem()
     service_item.name = 'presentations'
     service_item.title = 'Deck'
     service_item.add_from_text('Slide one')
     service_item.add_from_text('Slide two')
-    service_item.set_slide_video(1, video_path)
+    service_item.set_slide_clips(1, [make_slide_clip(video_path, **kwargs)])
     return service_item
 
 
+def test_make_slide_clip_defaults(tmp_path: Path):
+    """A new clip is described by its file name, sits in the bottom right corner and waits for a click"""
+    # WHEN: A clip is made from just a file
+    clip = make_slide_clip(tmp_path / 'Baptism story.mp4')
+
+    # THEN: It gets the defaults
+    assert clip['description'] == 'Baptism story'
+    assert clip['name'] == 'Baptism story.mp4'
+    assert clip['rect'] == DEFAULT_CLIP_RECT
+    assert clip['autoplay'] is False
+
+
+def test_make_slide_clip_cuts_long_description(tmp_path: Path):
+    """Descriptions are cut to DESCRIPTION_LENGTH characters"""
+    # WHEN: A clip is made with a long description
+    clip = make_slide_clip(tmp_path / 'clip.mp4', description='x' * 100)
+
+    # THEN: It is cut short
+    assert len(clip['description']) == DESCRIPTION_LENGTH
+
+
 @patch('openlp.core.lib.serviceitem.sha256_file_hash', return_value='abc123')
-def test_slide_video_full_save_round_trip(mocked_sha256_file_hash, registry: Registry, state_media, tmp_path: Path):
-    """A slide video is saved under its hash in a service file and found again in the service folder on load"""
-    # GIVEN: An item with a video attached to slide 2
+def test_slide_clip_full_save_round_trip(mocked_sha256_file_hash, registry: Registry, state_media, tmp_path: Path):
+    """A clip is saved under its hash in a service file, with its box, and found again in the service folder"""
+    # GIVEN: An item with a clip on slide 2
     registry.register('renderer', MagicMock())
-    service_item = _make_item_with_slide_video(tmp_path / 'clip.mp4')
+    service_item = _make_item_with_slide_clip(tmp_path / 'clip.mp4', description='Story', rect=(0.1, 0.2, 0.3, 0.4))
 
     # WHEN: The item is saved as a full service and loaded back from the service folder
     rep = service_item.get_service_repr(False)
     loaded_item = ServiceItem()
     loaded_item.set_from_service({'serviceitem': rep}, tmp_path / 'service', 3)
 
-    # THEN: The video is stored by hash, and keeps its name for display
+    # THEN: The video is stored by hash, and keeps its name, description and box
     assert rep['header']['slide_videos'] == [{'slide': 1, 'file': 'abc123.mp4', 'name': 'clip.mp4',
+                                              'description': 'Story', 'rect': [0.1, 0.2, 0.3, 0.4],
                                               'autoplay': False}]
-    assert loaded_item.get_slide_video(1) == tmp_path / 'service' / 'abc123.mp4'
-    assert loaded_item.slide_videos[1]['name'] == 'clip.mp4'
-    assert loaded_item.slide_videos[1]['hash'] == 'abc123'
-    assert loaded_item.get_slide_video(0) is None
+    clip = loaded_item.get_slide_clips(1)[0]
+    assert clip['path'] == tmp_path / 'service' / 'abc123.mp4'
+    assert clip['name'] == 'clip.mp4'
+    assert clip['hash'] == 'abc123'
+    assert clip['description'] == 'Story'
+    assert clip['rect'] == (0.1, 0.2, 0.3, 0.4)
+    assert loaded_item.get_slide_clips(0) == []
 
 
-def test_slide_video_lite_save_round_trip(registry: Registry, state_media, tmp_path: Path):
+def test_slide_clip_lite_save_round_trip(registry: Registry, state_media, tmp_path: Path):
     """A lite service keeps the video's original path"""
-    # GIVEN: An item with a video attached to slide 2
+    # GIVEN: An item with a clip on slide 2
     registry.register('renderer', MagicMock())
-    service_item = _make_item_with_slide_video(tmp_path / 'clip.mp4')
+    service_item = _make_item_with_slide_clip(tmp_path / 'clip.mp4')
 
     # WHEN: The item is saved as a lite service and loaded back
     rep = service_item.get_service_repr(True)
@@ -1241,7 +1267,64 @@ def test_slide_video_lite_save_round_trip(registry: Registry, state_media, tmp_p
     loaded_item.set_from_service({'serviceitem': rep}, None, 3)
 
     # THEN: The original path is used
-    assert loaded_item.get_slide_video(1) == tmp_path / 'clip.mp4'
+    assert loaded_item.get_slide_clips(1)[0]['path'] == tmp_path / 'clip.mp4'
+
+
+def test_several_clips_round_trip(registry: Registry, state_media, tmp_path: Path):
+    """Several clips on one slide are all saved, in order, and only the autoplay one is found as such"""
+    # GIVEN: A slide with three clips, the second playing automatically
+    registry.register('renderer', MagicMock())
+    service_item = _make_item_with_slide_clip(tmp_path / 'one.mp4')
+    service_item.set_slide_clips(1, [make_slide_clip(tmp_path / 'one.mp4'),
+                                     make_slide_clip(tmp_path / 'two.mp4', autoplay=True),
+                                     make_slide_clip(tmp_path / 'three.mp4')])
+
+    # WHEN: It is saved and loaded back
+    loaded_item = ServiceItem()
+    loaded_item.set_from_service({'serviceitem': service_item.get_service_repr(True)}, None, 3)
+
+    # THEN: All three are there, in order
+    assert [clip['name'] for clip in loaded_item.get_slide_clips(1)] == ['one.mp4', 'two.mp4', 'three.mp4']
+    assert loaded_item.get_autoplay_clip(1)['name'] == 'two.mp4'
+    assert loaded_item.get_autoplay_clip(0) is None
+
+
+def test_old_single_video_loads_as_one_clip(registry: Registry, state_media, tmp_path: Path):
+    """A service saved when a slide had one video, without a box, loads it as one clip in the default box"""
+    # GIVEN: A service item saved with the old single video entry
+    registry.register('renderer', MagicMock())
+    rep = _make_item_with_slide_clip(tmp_path / 'clip.mp4').get_service_repr(True)
+    rep['header']['slide_videos'] = [{'slide': 1, 'file': str(tmp_path / 'clip.mp4'), 'name': 'clip.mp4',
+                                      'autoplay': True}]
+
+    # WHEN: It is loaded
+    loaded_item = ServiceItem()
+    loaded_item.set_from_service({'serviceitem': rep}, None, 3)
+
+    # THEN: The video is clip 1, in the default box, still playing automatically
+    clips = loaded_item.get_slide_clips(1)
+    assert len(clips) == 1
+    assert clips[0]['rect'] == DEFAULT_CLIP_RECT
+    assert clips[0]['description'] == 'clip'
+    assert clips[0]['autoplay'] is True
+
+
+def test_set_slide_clips_limit_and_remove(registry: Registry, tmp_path: Path):
+    """A slide keeps at most MAX_SLIDE_CLIPS clips, and setting none removes them"""
+    # GIVEN: An item
+    service_item = _make_item_with_slide_clip(tmp_path / 'clip.mp4')
+
+    # WHEN: Too many clips are set
+    service_item.set_slide_clips(1, [make_slide_clip(tmp_path / '{n}.mp4'.format(n=n)) for n in range(12)])
+
+    # THEN: Only the first ten are kept
+    assert len(service_item.get_slide_clips(1)) == MAX_SLIDE_CLIPS
+
+    # WHEN: No clips are set
+    service_item.set_slide_clips(1, [])
+
+    # THEN: The slide has none
+    assert service_item.slide_videos == {}
 
 
 def test_no_slide_videos_not_saved(registry: Registry, settings):
@@ -1259,36 +1342,30 @@ def test_no_slide_videos_not_saved(registry: Registry, settings):
     assert 'slide_videos' not in rep['header']
 
 
-def test_remove_slide_video(registry: Registry, tmp_path: Path):
-    """remove_slide_video() detaches the video, and does nothing for a slide without one"""
-    # GIVEN: An item with a video attached to slide 2
-    service_item = _make_item_with_slide_video(tmp_path / 'clip.mp4')
+def test_remove_invalid_frames_drops_missing_slide_clip(registry: Registry, tmp_path: Path):
+    """A clip whose video is missing when the service is saved is dropped, and the others kept"""
+    # GIVEN: A slide with two clips
+    service_item = _make_item_with_slide_clip(tmp_path / 'clip.mp4')
+    service_item.set_slide_clips(1, [make_slide_clip(tmp_path / 'clip.mp4'), make_slide_clip(tmp_path / 'ok.mp4')])
 
-    # WHEN: The videos are removed from slides 1 and 2
-    service_item.remove_slide_video(0)
-    service_item.remove_slide_video(1)
+    # WHEN: One video is reported missing
+    service_item.remove_invalid_frames([str(tmp_path / 'clip.mp4')])
 
-    # THEN: No videos are left
+    # THEN: Only that clip is gone
+    assert [clip['name'] for clip in service_item.get_slide_clips(1)] == ['ok.mp4']
+
+    # WHEN: The other is missing too
+    service_item.remove_invalid_frames([str(tmp_path / 'ok.mp4')])
+
+    # THEN: The slide has no clips left
     assert service_item.slide_videos == {}
 
 
-def test_remove_invalid_frames_drops_missing_slide_video(registry: Registry, tmp_path: Path):
-    """A slide video that is missing when the service is saved is dropped from the item"""
-    # GIVEN: An item with a video attached to slide 2
-    service_item = _make_item_with_slide_video(tmp_path / 'clip.mp4')
-
-    # WHEN: The video is reported missing
-    service_item.remove_invalid_frames([str(tmp_path / 'clip.mp4')])
-
-    # THEN: The video is gone
-    assert service_item.get_slide_video(1) is None
-
-
-def test_merge_keeps_slide_videos(registry: Registry, tmp_path: Path):
-    """merge() carries slide videos over to the replacement item, except for slides it no longer has"""
-    # GIVEN: An original item with videos on slides 2 and 5, and a two-slide replacement
-    original = _make_item_with_slide_video(tmp_path / 'clip.mp4')
-    original.set_slide_video(4, tmp_path / 'other.mp4')
+def test_merge_keeps_slide_clips(registry: Registry, tmp_path: Path):
+    """merge() carries slide clips over to the replacement item, except for slides it no longer has"""
+    # GIVEN: An original item with clips on slides 2 and 5, and a two-slide replacement
+    original = _make_item_with_slide_clip(tmp_path / 'clip.mp4')
+    original.set_slide_clips(4, [make_slide_clip(tmp_path / 'other.mp4')])
     replacement = ServiceItem()
     replacement.add_from_text('Slide one')
     replacement.add_from_text('Slide two')
@@ -1296,24 +1373,6 @@ def test_merge_keeps_slide_videos(registry: Registry, tmp_path: Path):
     # WHEN: The replacement is merged with the original
     replacement.merge(original)
 
-    # THEN: Only the video on slide 2 is kept
-    assert replacement.get_slide_video(1) == tmp_path / 'clip.mp4'
-    assert replacement.get_slide_video(4) is None
-
-
-def test_slide_video_autoplay_round_trip(registry: Registry, state_media, tmp_path: Path):
-    """A video plays on click unless set to play automatically, which is kept when saved, and when it is changed"""
-    # GIVEN: An item with a video attached to slide 2
-    registry.register('renderer', MagicMock())
-    service_item = _make_item_with_slide_video(tmp_path / 'clip.mp4')
-    assert service_item.is_slide_video_autoplay(1) is False
-
-    # WHEN: The video is set to play automatically, changed to another video, saved and loaded back
-    service_item.set_slide_video_autoplay(1, True)
-    service_item.set_slide_video(1, tmp_path / 'other.mp4')
-    loaded_item = ServiceItem()
-    loaded_item.set_from_service({'serviceitem': service_item.get_service_repr(True)}, None, 3)
-
-    # THEN: It still plays automatically
-    assert loaded_item.is_slide_video_autoplay(1) is True
-    assert loaded_item.is_slide_video_autoplay(0) is False
+    # THEN: Only the clip on slide 2 is kept
+    assert replacement.get_slide_clips(1)[0]['path'] == tmp_path / 'clip.mp4'
+    assert replacement.get_slide_clips(4) == []

@@ -39,7 +39,7 @@ from openlp.core.common.utils import wait_for
 from openlp.core.display.screens import ScreenList
 from openlp.core.display.window import DisplayWindow
 from openlp.core.lib import ServiceItemAction, image_to_byte
-from openlp.core.lib.serviceitem import ItemCapabilities
+from openlp.core.lib.serviceitem import MAX_SLIDE_CLIPS, ItemCapabilities
 from openlp.core.lib.theme import BackgroundType
 from openlp.core.lib.ui import create_action
 from openlp.core.state import State
@@ -47,6 +47,7 @@ from openlp.core.ui import DisplayControllerType, HideMode
 from openlp.core.ui.icons import UiIcons
 from openlp.core.ui.media import media_empty_song
 from openlp.core.ui.media.slidevideo import SlideVideoPlayer
+from openlp.core.ui.videotriggers import LiveClipView
 from openlp.core.widgets.layouts import AspectRatioLayout
 from openlp.core.widgets.toolbar import MediaToolbar, OpenLPToolbar
 from openlp.core.widgets.views import ListPreviewWidget
@@ -123,6 +124,8 @@ class SlideController(QtWidgets.QWidget, LogMixin, RegistryProperties):
         self.media_info = None
         # Plays videos attached to presentation slides, created when first needed
         self.slide_video_player = None
+        self.clip_view = None
+        self.slide_clips = []
         Registry().set_flag('has doubleclick added item to service', True)
         Registry().set_flag('replace service manager item', False)
 
@@ -414,6 +417,19 @@ class SlideController(QtWidgets.QWidget, LogMixin, RegistryProperties):
         self.preview_display = DisplayWindow(self, window_title='Live' if self.is_live else 'Preview')
         self.slide_layout.addWidget(self.preview_display)
         self.slide_layout.resize.connect(self.on_preview_resize)
+        if self.is_live:
+            # The boxes of a presentation slide's video clips, laid over the preview display
+            self.clip_view = LiveClipView(self.preview_frame)
+            self.clip_view.hide()
+            self.clip_view.clip_clicked.connect(self.on_clip_clicked)
+            self.preview_display.cover = self.clip_view
+            # Ctrl+1 to Ctrl+9 and Ctrl+0 play clips 1 to 10. The number keys on their own go to a slide.
+            self.clip_shortcuts = []
+            for number in range(1, MAX_SLIDE_CLIPS + 1):
+                shortcut = QtWidgets.QShortcut(QtGui.QKeySequence('Ctrl+{key}'.format(key=number % 10)), self)
+                shortcut.setContext(QtCore.Qt.WidgetWithChildrenShortcut)
+                shortcut.activated.connect(lambda index=number - 1: self.on_clip_clicked(index))
+                self.clip_shortcuts.append(shortcut)
         # Actual preview screen
         if self.is_live:
             self.current_shortcut = ''
@@ -1077,6 +1093,8 @@ class SlideController(QtWidgets.QWidget, LogMixin, RegistryProperties):
         else:
             ratio = float(size.width()) / display_with
         self.preview_display.set_scale(ratio)
+        if self.clip_view:
+            self.clip_view.setGeometry(self.preview_display.geometry())
 
     def on_slide_unblank(self):
         """
@@ -1252,31 +1270,83 @@ class SlideController(QtWidgets.QWidget, LogMixin, RegistryProperties):
 
     def _update_slide_video(self, row, allow_autoplay=True):
         """
-        For a live presentation slide with a video, play the video over the presentation or show the trigger icon
-        that plays it. Stop the video when the presentation moves to a slide without one.
+        For a live presentation slide with video clips, show their boxes over the Live panel's picture, and play the
+        clip set to play automatically. Stop any clip when the presentation moves to a slide without clips.
 
         :param int row: The slide now showing, counting from 0
-        :param bool allow_autoplay: False to only show the trigger icon, even for a video set to play automatically
+        :param bool allow_autoplay: False to only show the boxes, even if a clip is set to play automatically
         """
         if not self.is_live:
             return
-        video_path = None
+        clips = []
         if self.service_item and not self._current_hide_mode:
-            video_path = self.service_item.get_slide_video(row)
-        if video_path:
+            clips = self.service_item.get_slide_clips(row)
+        if clips:
             if not self.slide_video_player:
                 self.slide_video_player = SlideVideoPlayer(self)
-            autoplay = allow_autoplay and self.service_item.is_slide_video_autoplay(row)
-            self.slide_video_player.show_slide(video_path, autoplay)
+                self.slide_video_player.playing_changed.connect(self.on_clip_playing_changed)
+            if clips != self.slide_clips:
+                self.slide_clips = list(clips)
+                if self.clip_view:
+                    self.clip_view.set_clips(self.slide_clips)
+            if self.clip_view:
+                self.clip_view.setGeometry(self.preview_display.geometry())
+                self.clip_view.show()
+                self.clip_view.raise_()
+            autoplay_clip = self.service_item.get_autoplay_clip(row) if allow_autoplay else None
+            self.slide_video_player.show_slide([clip['path'] for clip in clips],
+                                               autoplay_clip['path'] if autoplay_clip else None)
+            self.on_clip_playing_changed(self.slide_video_player.current_path)
         else:
             self._stop_slide_video()
 
     def _stop_slide_video(self):
         """
-        Stop the slide video, if one is playing, so the presentation shows again, and hide the trigger icon.
+        Stop the slide's clip, if one is playing, so the presentation shows again, and hide the clip boxes.
         """
         if self.slide_video_player:
             self.slide_video_player.clear_slide()
+        self.slide_clips = []
+        if self.clip_view:
+            self.clip_view.hide()
+            self.clip_view.set_clips([])
+
+    def refresh_slide_clips(self, service_item):
+        """
+        The video clips of a slide were changed: if the slide is live, show its boxes again, without autoplaying.
+
+        :param service_item: The service item whose clips were changed
+        """
+        if self.is_live and self.service_item and self.service_item.is_command() and \
+                self.service_item.unique_identifier == service_item.unique_identifier:
+            self.slide_clips = []
+            self._update_slide_video(self.selected_row, allow_autoplay=False)
+
+    def on_clip_clicked(self, index):
+        """
+        A clip's box in the Live panel was clicked, or its shortcut pressed: play the clip, or stop it if it is playing.
+
+        :param int index: The clip, counting from 0
+        """
+        if not 0 <= index < len(self.slide_clips) or not self.slide_video_player:
+            return
+        path = self.slide_clips[index]['path']
+        if self.slide_video_player.current_path == path:
+            self.slide_video_player.stop()
+        else:
+            self.slide_video_player.play(path)
+
+    def on_clip_playing_changed(self, path):
+        """
+        Mark the box of the clip that is playing
+        """
+        playing = -1
+        for index, clip in enumerate(self.slide_clips):
+            if path is not None and clip['path'] == path:
+                playing = index
+                break
+        if self.clip_view:
+            self.clip_view.set_playing(playing)
 
     def update_preview(self):
         """
@@ -1335,6 +1405,8 @@ class SlideController(QtWidgets.QWidget, LogMixin, RegistryProperties):
         base64_image = image_to_byte(display_image)
         self.screen_capture = base64_image
         self.preview_display.set_single_image_data('#000', base64_image)
+        if self.clip_view:
+            self.clip_view.set_picture(display_image)
 
     def _capture_maindisplay(self):
         """

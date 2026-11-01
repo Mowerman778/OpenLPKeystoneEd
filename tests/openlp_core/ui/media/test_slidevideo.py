@@ -37,8 +37,7 @@ def mocked_vlc():
     with patch('openlp.core.ui.media.vlcplayer.get_vlc', return_value=vlc), \
             patch('openlp.core.ui.media.slidevideo.threading.Thread') as mocked_thread, \
             patch('openlp.core.ui.media.slidevideo.ScreenList'), \
-            patch('openlp.core.ui.media.slidevideo.QtWidgets.QFrame'), \
-            patch('openlp.core.ui.media.slidevideo.SlideVideoTrigger'):
+            patch('openlp.core.ui.media.slidevideo.QtWidgets.QFrame'):
         mocked_thread.side_effect = lambda target: MagicMock(start=target)
         yield vlc
 
@@ -151,72 +150,84 @@ def test_video_end_hides_window(mocked_vlc: MagicMock, settings: Settings, tmp_p
     assert player.is_playing() is False
 
 
-def test_show_slide_click_shows_trigger(mocked_vlc: MagicMock, settings: Settings, tmp_path: Path):
-    """A slide whose video plays on click shows the trigger icon, and nothing is played yet"""
+def test_show_slide_without_autoplay_plays_nothing(mocked_vlc: MagicMock, settings: Settings, tmp_path: Path):
+    """A slide whose clips wait for a click plays nothing yet"""
     # GIVEN: A player
     video_path = tmp_path / 'clip.mp4'
     video_path.write_bytes(b'video')
     player = SlideVideoPlayer()
 
-    # WHEN: A slide whose video plays on click is shown
-    player.show_slide(video_path, False)
+    # WHEN: A slide with a clip that waits for a click is shown
+    player.show_slide([video_path])
 
-    # THEN: The trigger icon is shown and nothing plays
-    player.trigger.show_on_screen.assert_called_once_with()
+    # THEN: Nothing plays
     assert player.is_playing() is False
-
-
-def test_trigger_click_plays_and_end_brings_trigger_back(mocked_vlc: MagicMock, settings: Settings, tmp_path: Path):
-    """Clicking the trigger icon plays the video and hides the icon; it comes back when the video ends"""
-    # GIVEN: A slide whose video plays on click
-    video_path = tmp_path / 'clip.mp4'
-    video_path.write_bytes(b'video')
-    player = SlideVideoPlayer()
-    player.show_slide(video_path, False)
-    trigger = player.trigger
-
-    # WHEN: The trigger icon is clicked
-    player.on_trigger_clicked()
-
-    # THEN: The video plays and the icon is hidden
-    assert player.is_playing() is True
-    trigger.hide.assert_called_once_with()
-
-    # WHEN: The video ends
-    player.on_ended()
-
-    # THEN: The icon is back, so the video can be played again
-    assert player.is_playing() is False
-    assert trigger.show_on_screen.call_count == 2
 
 
 def test_show_slide_autoplay_plays(mocked_vlc: MagicMock, settings: Settings, tmp_path: Path):
-    """A slide whose video plays automatically plays it straight away"""
+    """A slide with a clip that plays automatically plays it straight away"""
     # GIVEN: A player
     video_path = tmp_path / 'clip.mp4'
     video_path.write_bytes(b'video')
     player = SlideVideoPlayer()
+    playing = []
+    player.playing_changed.connect(playing.append)
 
-    # WHEN: A slide whose video plays automatically is shown
-    player.show_slide(video_path, True)
+    # WHEN: A slide whose clip plays automatically is shown
+    player.show_slide([video_path], video_path)
 
-    # THEN: The video plays
-    assert player.is_playing() is True
+    # THEN: The clip plays, and the change is reported
+    assert player.current_path == video_path
+    assert playing == [video_path]
 
 
-def test_clear_slide_stops_and_hides_trigger(mocked_vlc: MagicMock, settings: Settings, tmp_path: Path):
-    """Moving to a slide without a video stops the video and hides the trigger icon"""
-    # GIVEN: A slide whose video is playing
+def test_show_slide_keeps_own_clip_playing(mocked_vlc: MagicMock, settings: Settings, tmp_path: Path):
+    """Showing the same slide again, such as after unblanking, does not stop its clip"""
+    # GIVEN: A slide whose clip is playing
     video_path = tmp_path / 'clip.mp4'
     video_path.write_bytes(b'video')
     player = SlideVideoPlayer()
-    player.show_slide(video_path, False)
-    player.on_trigger_clicked()
+    player.show_slide([video_path])
+    player.play(video_path)
 
-    # WHEN: A slide without a video is shown
+    # WHEN: The slide is shown again
+    player.show_slide([video_path])
+
+    # THEN: The clip is still playing
+    assert player.current_path == video_path
+
+
+def test_show_slide_stops_other_slides_clip(mocked_vlc: MagicMock, settings: Settings, tmp_path: Path):
+    """Moving to another slide with clips stops the clip of the slide before"""
+    # GIVEN: A slide whose clip is playing
+    first = tmp_path / 'first.mp4'
+    first.write_bytes(b'video')
+    second = tmp_path / 'second.mp4'
+    second.write_bytes(b'video')
+    player = SlideVideoPlayer()
+    player.show_slide([first], first)
+    playing = []
+    player.playing_changed.connect(playing.append)
+
+    # WHEN: Another slide, whose clip waits for a click, is shown
+    player.show_slide([second])
+
+    # THEN: The first clip was stopped
+    assert player.is_playing() is False
+    assert playing == [None]
+
+
+def test_clear_slide_stops(mocked_vlc: MagicMock, settings: Settings, tmp_path: Path):
+    """Moving to a slide without clips stops the clip"""
+    # GIVEN: A slide whose clip is playing
+    video_path = tmp_path / 'clip.mp4'
+    video_path.write_bytes(b'video')
+    player = SlideVideoPlayer()
+    player.show_slide([video_path], video_path)
+
+    # WHEN: A slide without clips is shown
     player.clear_slide()
 
-    # THEN: Nothing plays and the icon stays hidden
+    # THEN: Nothing plays
     assert player.is_playing() is False
-    assert player.trigger.hide.call_count == 2
-    player.trigger.show_on_screen.assert_called_once_with()
+    assert player.slide_paths == []

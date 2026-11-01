@@ -43,6 +43,7 @@ from openlp.core.common.registry import Registry, RegistryBase
 from openlp.core.lib import build_icon, ItemCapabilities
 from openlp.core.lib.exceptions import ValidationError
 from openlp.core.lib.plugin import PluginStatus
+from openlp.core.display.screens import ScreenList
 from openlp.core.lib.serviceitem import ServiceItem
 from openlp.core.lib.ui import create_widget_action, critical_error_message_box, find_and_set_in_combo_box
 from openlp.core.state import State
@@ -256,16 +257,10 @@ class Ui_ServiceManager(object):
                                                  triggers=self.on_service_item_note_form)
         self.time_action = create_widget_action(self.menu, text=translate('OpenLP.ServiceManager', '&Start Time'),
                                                 icon=UiIcons().time, triggers=self.on_start_time_form)
-        self.attach_video_action = create_widget_action(self.menu,
-                                                        text=translate('OpenLP.ServiceManager', 'Attach &Video...'),
-                                                        icon=UiIcons().video, triggers=self.on_attach_slide_video)
-        self.remove_video_action = create_widget_action(self.menu,
-                                                        text=translate('OpenLP.ServiceManager', 'Remove V&ideo'),
-                                                        icon=UiIcons().delete, triggers=self.on_remove_slide_video)
-        self.autoplay_video_action = create_widget_action(self.menu,
+        self.video_triggers_action = create_widget_action(self.menu,
                                                           text=translate('OpenLP.ServiceManager',
-                                                                         'Play Video &Automatically'),
-                                                          checked=False, triggers=self.on_autoplay_slide_video)
+                                                                         'Video &Trigger Manager...'),
+                                                          icon=UiIcons().video, triggers=self.on_video_triggers)
         self.auto_start_action = create_widget_action(self.menu, text='',
                                                       icon=UiIcons().active,
                                                       triggers=self.on_auto_start)
@@ -660,13 +655,14 @@ class ServiceManager(QtWidgets.QWidget, RegistryBase, Ui_ServiceManager, LogMixi
                 if audio_path_tuple in write_list:
                     continue
                 write_list.append(audio_path_tuple)
-            for slide_index, video in item['service_item'].slide_videos.items():
-                if not video['path'].exists():
-                    missing_list.append(str(video['path']))
-                    continue
-                video_path_tuple = (video['path'], item['service_item'].get_slide_video_stored_name(slide_index))
-                if video_path_tuple not in write_list:
-                    write_list.append(video_path_tuple)
+            for clips in item['service_item'].slide_videos.values():
+                for clip in clips:
+                    if not clip['path'].exists():
+                        missing_list.append(str(clip['path']))
+                        continue
+                    video_path_tuple = (clip['path'], item['service_item'].get_clip_stored_name(clip))
+                    if video_path_tuple not in write_list:
+                        write_list.append(video_path_tuple)
         return write_list, missing_list
 
     def save_file(self):
@@ -966,19 +962,9 @@ class ServiceManager(QtWidgets.QWidget, RegistryBase, Ui_ServiceManager, LogMixi
             self.maintain_action.setVisible(True)
         if item.parent() is None:
             self.notes_action.setVisible(True)
-        # Videos are attached to single slides of presentations that LibreOffice or PowerPoint show
-        can_have_video = item.parent() is not None and \
-            service_item['service_item'].is_capable(ItemCapabilities.ProvidesOwnDisplay)
-        has_video = can_have_video and \
-            service_item['service_item'].get_slide_video(item.data(0, QtCore.Qt.UserRole)) is not None
-        self.attach_video_action.setVisible(can_have_video)
-        self.attach_video_action.setText(translate('OpenLP.ServiceManager', 'Change &Video...') if has_video else
-                                         translate('OpenLP.ServiceManager', 'Attach &Video...'))
-        self.remove_video_action.setVisible(has_video)
-        self.autoplay_video_action.setVisible(has_video)
-        if has_video:
-            self.autoplay_video_action.setChecked(
-                service_item['service_item'].is_slide_video_autoplay(item.data(0, QtCore.Qt.UserRole)))
+        # Video clips are put on single slides of presentations that LibreOffice or PowerPoint show
+        self.video_triggers_action.setVisible(
+            item.parent() is not None and service_item['service_item'].is_capable(ItemCapabilities.ProvidesOwnDisplay))
         if service_item['service_item'].is_capable(ItemCapabilities.CanLoop) and  \
                 len(service_item['service_item'].get_frames()) > 1:
             self.auto_play_slides_menu.menuAction().setVisible(True)
@@ -1034,47 +1020,33 @@ class ServiceManager(QtWidgets.QWidget, RegistryBase, Ui_ServiceManager, LogMixi
             self.repaint_service_list(item, -1)
             self.set_modified()
 
-    def on_attach_slide_video(self):
+    def get_video_trigger_form(self):
         """
-        Choose a video for OpenLP to play, full screen, when the selected presentation slide is shown live.
+        The Video Trigger Manager, made the first time it is needed
         """
-        item, child = self.find_service_item()
-        if child < 0:
-            return
-        file_filter = '{videos} ({extensions});;{all} (*)'.format(
-            videos=translate('OpenLP', 'Video Files'), extensions=' '.join(VIDEO_EXT), all=UiStrings().AllFiles)
-        file_path, _ = FileDialog.getOpenFileName(self, translate('OpenLP.ServiceManager', 'Choose a video'),
-                                                  self.settings.value('servicemanager/last video directory'),
-                                                  file_filter)
-        if not file_path:
-            return
-        self.settings.setValue('servicemanager/last video directory', file_path.parent)
-        self.service_items[item]['service_item'].set_slide_video(child, file_path)
-        self.repaint_service_list(item, child)
-        self.set_modified()
+        if not hasattr(self, 'video_trigger_form'):
+            from openlp.core.ui.videotriggers import VideoTriggerForm
+            self.video_trigger_form = VideoTriggerForm(self, ScreenList().current.display_geometry.size())
+        return self.video_trigger_form
 
-    def on_remove_slide_video(self):
+    def on_video_triggers(self):
         """
-        Detach the video from the selected presentation slide.
-        """
-        item, child = self.find_service_item()
-        if child < 0:
-            return
-        self.service_items[item]['service_item'].remove_slide_video(child)
-        self.repaint_service_list(item, child)
-        self.set_modified()
-
-    def on_autoplay_slide_video(self, checked):
-        """
-        Choose whether the selected slide's video plays as soon as the slide is shown, or waits for a click on the
-        trigger icon.
+        Open the Video Trigger Manager for the selected presentation slide, to put video clips on it
         """
         item, child = self.find_service_item()
         if child < 0:
             return
-        self.service_items[item]['service_item'].set_slide_video_autoplay(child, checked)
-        self.repaint_service_list(item, child)
-        self.set_modified()
+        service_item = self.service_items[item]['service_item']
+        picture = service_item.get_rendered_frame(child)
+        title = '{item} - {slide}'.format(item=service_item.get_display_title(),
+                                          slide=service_item.get_frame_title(child))
+        form = self.get_video_trigger_form()
+        if form.exec(service_item.get_slide_clips(child), Path(picture) if picture else None, title):
+            service_item.set_slide_clips(child, form.clips)
+            self.repaint_service_list(item, child)
+            self.set_modified()
+            # Show the new boxes straight away if the slide is live
+            self.live_controller.refresh_slide_clips(service_item)
 
     def on_start_time_form(self):
         """
@@ -1536,14 +1508,17 @@ class ServiceManager(QtWidgets.QWidget, RegistryBase, Ui_ServiceManager, LogMixi
                         text = service_item_from_item.get_rendered_frame(slide_index, clean=True)
                     child.setText(0, text[:40])
                     child.setData(0, QtCore.Qt.UserRole, slide_index)
-                    slide_video = service_item_from_item.slide_videos.get(slide_index)
-                    if slide_video:
+                    clips = service_item_from_item.get_slide_clips(slide_index)
+                    if clips:
                         child.setIcon(0, UiIcons().video)
-                        if slide_video['autoplay']:
-                            tooltip = translate('OpenLP.ServiceManager', 'Plays video automatically: {name}')
-                        else:
-                            tooltip = translate('OpenLP.ServiceManager', 'Plays video on click: {name}')
-                        child.setToolTip(0, tooltip.format(name=html.escape(slide_video['name'])))
+                        lines = [translate('OpenLP.ServiceManager', 'Video clips:')]
+                        for number, clip in enumerate(clips, 1):
+                            line = '{number}. {text} ({name})'.format(number=number, text=clip['description'],
+                                                                      name=clip['name'])
+                            if clip['autoplay']:
+                                line += ' - ' + translate('OpenLP.ServiceManager', 'plays automatically')
+                            lines.append(html.escape(line))
+                        child.setToolTip(0, '<br>'.join(lines))
                 except RuntimeError:
                     # it's probably a "wrapped C/C++ object of type QTreeWidgetItem has been deleted" due to
                     # consecutive/parallel repaint_service_list execution. We've added some mitigation to avoid this

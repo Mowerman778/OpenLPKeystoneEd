@@ -239,7 +239,8 @@ class PresentationMediaItem(FolderLibraryItem):
                       '1. Delete the videos from the presentation and save it.\n'
                       '2. Add the presentation to the service.\n'
                       '3. In the Service Manager, expand it, right-click each of those slides and choose '
-                      'Attach Video.').format(name=file_path.name, slides=', '.join(str(slide) for slide in slides)))
+                      'Video Trigger Manager.').format(name=file_path.name,
+                                                       slides=', '.join(str(slide) for slide in slides)))
 
     def delete_item(self, item):
         """
