@@ -1153,6 +1153,9 @@ class SlideController(QtWidgets.QWidget, LogMixin, RegistryProperties):
         self._current_hide_mode = hide_mode
         if hide_mode:
             self._stop_slide_video()
+        elif self.service_item and self.service_item.is_command():
+            # Bring the trigger icon back, without playing the video, when the screen is shown again
+            self._update_slide_video(self.selected_row, allow_autoplay=False)
         # Update ui buttons
         if hide_mode is None:
             self.hide_menu.setDefaultAction(self.blank_screen)
@@ -1247,12 +1250,13 @@ class SlideController(QtWidgets.QWidget, LogMixin, RegistryProperties):
         self.selected_row = row
         self._update_slide_video(row)
 
-    def _update_slide_video(self, row):
+    def _update_slide_video(self, row, allow_autoplay=True):
         """
-        Play the video attached to a live presentation slide over the presentation, or stop the video when the
-        presentation moves to a slide without one.
+        For a live presentation slide with a video, play the video over the presentation or show the trigger icon
+        that plays it. Stop the video when the presentation moves to a slide without one.
 
         :param int row: The slide now showing, counting from 0
+        :param bool allow_autoplay: False to only show the trigger icon, even for a video set to play automatically
         """
         if not self.is_live:
             return
@@ -1262,16 +1266,17 @@ class SlideController(QtWidgets.QWidget, LogMixin, RegistryProperties):
         if video_path:
             if not self.slide_video_player:
                 self.slide_video_player = SlideVideoPlayer(self)
-            self.slide_video_player.play(video_path)
+            autoplay = allow_autoplay and self.service_item.is_slide_video_autoplay(row)
+            self.slide_video_player.show_slide(video_path, autoplay)
         else:
             self._stop_slide_video()
 
     def _stop_slide_video(self):
         """
-        Stop the slide video, if one is playing, so the presentation shows again.
+        Stop the slide video, if one is playing, so the presentation shows again, and hide the trigger icon.
         """
         if self.slide_video_player:
-            self.slide_video_player.stop()
+            self.slide_video_player.clear_slide()
 
     def update_preview(self):
         """

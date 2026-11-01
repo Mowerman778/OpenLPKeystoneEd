@@ -1991,17 +1991,43 @@ def _make_controller_with_slide_video(is_live, tmp_path):
     return slide_controller
 
 
+@pytest.mark.parametrize('autoplay', [True, False])
 @patch('openlp.core.ui.slidecontroller.SlideVideoPlayer')
-def test_on_slide_change_plays_slide_video(MockSlideVideoPlayer: MagicMock, registry: Registry, tmp_path):
-    """When the live presentation reaches a slide with a video, the video is played"""
+def test_on_slide_change_shows_slide_video(MockSlideVideoPlayer: MagicMock, autoplay, registry: Registry, tmp_path):
+    """When the live presentation reaches a slide with a video, the video is played or its trigger icon shown"""
     # GIVEN: A live controller showing a presentation with a video on slide 2
     slide_controller = _make_controller_with_slide_video(True, tmp_path)
+    slide_controller.service_item.set_slide_video_autoplay(1, autoplay)
 
     # WHEN: The presentation moves to slide 2
     slide_controller.on_slide_change(1)
 
-    # THEN: The video is played
-    MockSlideVideoPlayer.return_value.play.assert_called_once_with(tmp_path / 'clip.mp4')
+    # THEN: The player is given the video, and whether to play it straight away
+    MockSlideVideoPlayer.return_value.show_slide.assert_called_once_with(tmp_path / 'clip.mp4', autoplay)
+
+
+def test_set_hide_mode_show_brings_back_trigger(registry: Registry, settings: Settings, tmp_path):
+    """Showing the live screen again brings back the trigger icon, without playing a video set to play automatically"""
+    # GIVEN: A blanked live controller on slide 2, whose video plays automatically
+    slide_controller = _make_controller_with_slide_video(True, tmp_path)
+    slide_controller.service_item.set_slide_video_autoplay(1, True)
+    slide_controller.service_item.service_item_type = ServiceItemType.Command
+    slide_controller.selected_row = 1
+    slide_controller._current_hide_mode = HideMode.Blank
+    slide_controller.slide_video_player = MagicMock()
+    slide_controller.hide_menu = MagicMock()
+    slide_controller.show_screen = MagicMock()
+    slide_controller.blank_screen = MagicMock()
+    slide_controller.theme_screen = MagicMock()
+    slide_controller.desktop_screen = MagicMock()
+    slide_controller.on_toggle_loop = MagicMock()
+
+    # WHEN: The screen is shown again
+    with patch('openlp.core.ui.slidecontroller.Registry.execute'):
+        slide_controller.set_hide_mode(None)
+
+    # THEN: Only the trigger icon is shown
+    slide_controller.slide_video_player.show_slide.assert_called_once_with(tmp_path / 'clip.mp4', False)
 
 
 @patch('openlp.core.ui.slidecontroller.SlideVideoPlayer')
@@ -2015,7 +2041,7 @@ def test_on_slide_change_stops_slide_video(MockSlideVideoPlayer: MagicMock, regi
     slide_controller.on_slide_change(2)
 
     # THEN: The video is stopped
-    MockSlideVideoPlayer.return_value.stop.assert_called_once_with()
+    MockSlideVideoPlayer.return_value.clear_slide.assert_called_once_with()
 
 
 @patch('openlp.core.ui.slidecontroller.SlideVideoPlayer')
@@ -2064,7 +2090,7 @@ def test_set_hide_mode_stops_slide_video(registry: Registry, settings: Settings,
         slide_controller.set_hide_mode(HideMode.Blank)
 
     # THEN: The video is stopped
-    slide_controller.slide_video_player.stop.assert_called_once_with()
+    slide_controller.slide_video_player.clear_slide.assert_called_once_with()
 
 
 def test_on_clear_stops_slide_video(registry: Registry, tmp_path):
@@ -2078,4 +2104,4 @@ def test_on_clear_stops_slide_video(registry: Registry, tmp_path):
     slide_controller.on_clear()
 
     # THEN: The video is stopped
-    slide_controller.slide_video_player.stop.assert_called_once_with()
+    slide_controller.slide_video_player.clear_slide.assert_called_once_with()

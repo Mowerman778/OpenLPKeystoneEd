@@ -318,6 +318,7 @@ def test_build_context_menu(settings: Settings):
     service_manager.auto_start_action = MagicMock()
     service_manager.attach_video_action = MagicMock()
     service_manager.remove_video_action = MagicMock()
+    service_manager.autoplay_video_action = MagicMock()
     service_manager.auto_play_slides_menu = MagicMock()
     service_manager.auto_play_slides_once = MagicMock()
     service_manager.auto_play_slides_loop = MagicMock()
@@ -377,6 +378,7 @@ def test_build_song_context_menu(settings: Settings, state: State):
     service_manager.auto_start_action = MagicMock()
     service_manager.attach_video_action = MagicMock()
     service_manager.remove_video_action = MagicMock()
+    service_manager.autoplay_video_action = MagicMock()
     service_manager.auto_play_slides_menu = MagicMock()
     service_manager.auto_play_slides_once = MagicMock()
     service_manager.auto_play_slides_loop = MagicMock()
@@ -445,6 +447,7 @@ def test_build_bible_context_menu(settings: Settings, state: State):
     service_manager.auto_start_action = MagicMock()
     service_manager.attach_video_action = MagicMock()
     service_manager.remove_video_action = MagicMock()
+    service_manager.autoplay_video_action = MagicMock()
     service_manager.auto_play_slides_menu = MagicMock()
     service_manager.auto_play_slides_once = MagicMock()
     service_manager.auto_play_slides_loop = MagicMock()
@@ -514,6 +517,7 @@ def test_build_custom_context_menu(settings: Settings, state: State):
     service_manager.auto_start_action = MagicMock()
     service_manager.attach_video_action = MagicMock()
     service_manager.remove_video_action = MagicMock()
+    service_manager.autoplay_video_action = MagicMock()
     service_manager.auto_play_slides_menu = MagicMock()
     service_manager.auto_play_slides_once = MagicMock()
     service_manager.auto_play_slides_loop = MagicMock()
@@ -580,6 +584,7 @@ def test_build_image_context_menu(settings: Settings):
     service_manager.auto_start_action = MagicMock()
     service_manager.attach_video_action = MagicMock()
     service_manager.remove_video_action = MagicMock()
+    service_manager.autoplay_video_action = MagicMock()
     service_manager.auto_play_slides_menu = MagicMock()
     service_manager.auto_play_slides_once = MagicMock()
     service_manager.auto_play_slides_loop = MagicMock()
@@ -644,6 +649,7 @@ def test_build_media_context_menu(settings: Settings):
     service_manager.auto_start_action = MagicMock()
     service_manager.attach_video_action = MagicMock()
     service_manager.remove_video_action = MagicMock()
+    service_manager.autoplay_video_action = MagicMock()
     service_manager.auto_play_slides_menu = MagicMock()
     service_manager.auto_play_slides_once = MagicMock()
     service_manager.auto_play_slides_loop = MagicMock()
@@ -705,6 +711,7 @@ def test_build_presentation_pdf_context_menu(settings: Settings):
     service_manager.auto_start_action = MagicMock()
     service_manager.attach_video_action = MagicMock()
     service_manager.remove_video_action = MagicMock()
+    service_manager.autoplay_video_action = MagicMock()
     service_manager.auto_play_slides_menu = MagicMock()
     service_manager.auto_play_slides_once = MagicMock()
     service_manager.auto_play_slides_loop = MagicMock()
@@ -758,6 +765,7 @@ def test_build_presentation_non_pdf_context_menu(settings: Settings):
     service_manager.auto_start_action = MagicMock()
     service_manager.attach_video_action = MagicMock()
     service_manager.remove_video_action = MagicMock()
+    service_manager.autoplay_video_action = MagicMock()
     service_manager.auto_play_slides_menu = MagicMock()
     service_manager.auto_play_slides_once = MagicMock()
     service_manager.auto_play_slides_loop = MagicMock()
@@ -2764,3 +2772,22 @@ def test_slide_video_context_menu(mocked_exec, mocked_map_to_global, mocked_item
     # THEN: The video actions are shown or hidden as expected
     assert service_manager.attach_video_action.isVisible() is attach_visible
     assert service_manager.remove_video_action.isVisible() is remove_visible
+
+
+@pytest.mark.parametrize('checked', [True, False])
+def test_on_autoplay_slide_video(checked, service_manager: ServiceManager, tmp_path: Path):
+    """Play Video Automatically sets whether the selected slide's video plays straight away or on click"""
+    # GIVEN: Slide 3 of a presentation, with a video, selected
+    service_item = ServiceItem()
+    service_item.set_slide_video(2, tmp_path / 'clip.mp4')
+    service_manager.service_items = [{'service_item': service_item}]
+    service_manager.find_service_item = MagicMock(return_value=(0, 2))
+    service_manager.repaint_service_list = MagicMock()
+    service_manager.set_modified = MagicMock()
+
+    # WHEN: Play Video Automatically is clicked
+    service_manager.on_autoplay_slide_video(checked)
+
+    # THEN: The video's setting is changed and the service is marked as changed
+    assert service_item.is_slide_video_autoplay(2) is checked
+    service_manager.set_modified.assert_called_once_with()

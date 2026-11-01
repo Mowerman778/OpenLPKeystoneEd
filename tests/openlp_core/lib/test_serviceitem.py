@@ -1221,7 +1221,8 @@ def test_slide_video_full_save_round_trip(mocked_sha256_file_hash, registry: Reg
     loaded_item.set_from_service({'serviceitem': rep}, tmp_path / 'service', 3)
 
     # THEN: The video is stored by hash, and keeps its name for display
-    assert rep['header']['slide_videos'] == [{'slide': 1, 'file': 'abc123.mp4', 'name': 'clip.mp4'}]
+    assert rep['header']['slide_videos'] == [{'slide': 1, 'file': 'abc123.mp4', 'name': 'clip.mp4',
+                                              'autoplay': False}]
     assert loaded_item.get_slide_video(1) == tmp_path / 'service' / 'abc123.mp4'
     assert loaded_item.slide_videos[1]['name'] == 'clip.mp4'
     assert loaded_item.slide_videos[1]['hash'] == 'abc123'
@@ -1298,3 +1299,21 @@ def test_merge_keeps_slide_videos(registry: Registry, tmp_path: Path):
     # THEN: Only the video on slide 2 is kept
     assert replacement.get_slide_video(1) == tmp_path / 'clip.mp4'
     assert replacement.get_slide_video(4) is None
+
+
+def test_slide_video_autoplay_round_trip(registry: Registry, state_media, tmp_path: Path):
+    """A video plays on click unless set to play automatically, which is kept when saved, and when it is changed"""
+    # GIVEN: An item with a video attached to slide 2
+    registry.register('renderer', MagicMock())
+    service_item = _make_item_with_slide_video(tmp_path / 'clip.mp4')
+    assert service_item.is_slide_video_autoplay(1) is False
+
+    # WHEN: The video is set to play automatically, changed to another video, saved and loaded back
+    service_item.set_slide_video_autoplay(1, True)
+    service_item.set_slide_video(1, tmp_path / 'other.mp4')
+    loaded_item = ServiceItem()
+    loaded_item.set_from_service({'serviceitem': service_item.get_service_repr(True)}, None, 3)
+
+    # THEN: It still plays automatically
+    assert loaded_item.is_slide_video_autoplay(1) is True
+    assert loaded_item.is_slide_video_autoplay(0) is False

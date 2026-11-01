@@ -451,7 +451,7 @@ class ServiceItem(RegistryProperties):
                 else:
                     path_str = self.get_slide_video_stored_name(slide_index)
                 service_header['slide_videos'].append({'slide': slide_index, 'file': path_str,
-                                                       'name': video['name']})
+                                                       'name': video['name'], 'autoplay': video['autoplay']})
         service_data = []
         if self.service_item_type == ServiceItemType.Text:
             for slide in self.slides:
@@ -569,7 +569,8 @@ class ServiceItem(RegistryProperties):
                 file_path = path / file_path
             # Bundled files are named by their hash, so the hash is the file name without its suffix
             self.slide_videos[slide_video['slide']] = {'path': file_path, 'hash': file_path.stem if path else None,
-                                                       'name': slide_video.get('name', file_path.name)}
+                                                       'name': slide_video.get('name', file_path.name),
+                                                       'autoplay': slide_video.get('autoplay', False)}
         self.theme_overwritten = header.get('theme_overwritten', False)
         if self.service_item_type == ServiceItemType.Text:
             for slide in service_item['serviceitem']['data']:
@@ -910,7 +911,25 @@ class ServiceItem(RegistryProperties):
         :param int slide_index: The slide, counting from 0
         :param Path file_path: The video file
         """
-        self.slide_videos[slide_index] = {'path': Path(file_path), 'hash': None, 'name': Path(file_path).name}
+        autoplay = self.slide_videos.get(slide_index, {}).get('autoplay', False)
+        self.slide_videos[slide_index] = {'path': Path(file_path), 'hash': None, 'name': Path(file_path).name,
+                                          'autoplay': autoplay}
+
+    def set_slide_video_autoplay(self, slide_index, autoplay):
+        """
+        :param int slide_index: The slide, counting from 0
+        :param bool autoplay: True to play the video as soon as the slide is shown, False to wait for a click on the
+            trigger icon
+        """
+        if slide_index in self.slide_videos:
+            self.slide_videos[slide_index]['autoplay'] = autoplay
+
+    def is_slide_video_autoplay(self, slide_index):
+        """
+        :param int slide_index: The slide, counting from 0
+        :return: True if the slide's video plays as soon as the slide is shown
+        """
+        return self.slide_videos.get(slide_index, {}).get('autoplay', False)
 
     def remove_slide_video(self, slide_index):
         """

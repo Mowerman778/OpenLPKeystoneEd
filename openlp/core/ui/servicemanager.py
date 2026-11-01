@@ -262,6 +262,10 @@ class Ui_ServiceManager(object):
         self.remove_video_action = create_widget_action(self.menu,
                                                         text=translate('OpenLP.ServiceManager', 'Remove V&ideo'),
                                                         icon=UiIcons().delete, triggers=self.on_remove_slide_video)
+        self.autoplay_video_action = create_widget_action(self.menu,
+                                                          text=translate('OpenLP.ServiceManager',
+                                                                         'Play Video &Automatically'),
+                                                          checked=False, triggers=self.on_autoplay_slide_video)
         self.auto_start_action = create_widget_action(self.menu, text='',
                                                       icon=UiIcons().active,
                                                       triggers=self.on_auto_start)
@@ -971,6 +975,10 @@ class ServiceManager(QtWidgets.QWidget, RegistryBase, Ui_ServiceManager, LogMixi
         self.attach_video_action.setText(translate('OpenLP.ServiceManager', 'Change &Video...') if has_video else
                                          translate('OpenLP.ServiceManager', 'Attach &Video...'))
         self.remove_video_action.setVisible(has_video)
+        self.autoplay_video_action.setVisible(has_video)
+        if has_video:
+            self.autoplay_video_action.setChecked(
+                service_item['service_item'].is_slide_video_autoplay(item.data(0, QtCore.Qt.UserRole)))
         if service_item['service_item'].is_capable(ItemCapabilities.CanLoop) and  \
                 len(service_item['service_item'].get_frames()) > 1:
             self.auto_play_slides_menu.menuAction().setVisible(True)
@@ -1053,6 +1061,18 @@ class ServiceManager(QtWidgets.QWidget, RegistryBase, Ui_ServiceManager, LogMixi
         if child < 0:
             return
         self.service_items[item]['service_item'].remove_slide_video(child)
+        self.repaint_service_list(item, child)
+        self.set_modified()
+
+    def on_autoplay_slide_video(self, checked):
+        """
+        Choose whether the selected slide's video plays as soon as the slide is shown, or waits for a click on the
+        trigger icon.
+        """
+        item, child = self.find_service_item()
+        if child < 0:
+            return
+        self.service_items[item]['service_item'].set_slide_video_autoplay(child, checked)
         self.repaint_service_list(item, child)
         self.set_modified()
 
@@ -1519,8 +1539,11 @@ class ServiceManager(QtWidgets.QWidget, RegistryBase, Ui_ServiceManager, LogMixi
                     slide_video = service_item_from_item.slide_videos.get(slide_index)
                     if slide_video:
                         child.setIcon(0, UiIcons().video)
-                        child.setToolTip(0, translate('OpenLP.ServiceManager', 'Plays video: {name}').format(
-                            name=html.escape(slide_video['name'])))
+                        if slide_video['autoplay']:
+                            tooltip = translate('OpenLP.ServiceManager', 'Plays video automatically: {name}')
+                        else:
+                            tooltip = translate('OpenLP.ServiceManager', 'Plays video on click: {name}')
+                        child.setToolTip(0, tooltip.format(name=html.escape(slide_video['name'])))
                 except RuntimeError:
                     # it's probably a "wrapped C/C++ object of type QTreeWidgetItem has been deleted" due to
                     # consecutive/parallel repaint_service_list execution. We've added some mitigation to avoid this
