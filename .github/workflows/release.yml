@@ -1,0 +1,101 @@
+# OpenLPUG release build
+#
+# Pushing a version tag, e.g. `git tag v1.0.0 && git push origin v1.0.0`, builds the Windows installer and publishes
+# it as a GitHub release together with update.json, which Help > Updates in the app reads to find and check the
+# latest version:
+#
+#   https://github.com/<owner>/<repo>/releases/latest/download/update.json
+#
+# Release notes are taken from the tag's message (`git tag -a v1.0.1 -m "What's new"`), if it has one.
+name: Release
+
+on:
+  push:
+    tags: ['v*.*.*']
+  workflow_dispatch:
+    inputs:
+      tag:
+        description: 'Existing tag to (re)build, e.g. v1.0.0'
+        required: true
+
+permissions:
+  contents: write
+
+jobs:
+  build-windows:
+    name: Build and publish the Windows installer
+    runs-on: windows-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: ${{ github.event.inputs.tag || github.ref }}
+          fetch-depth: 0
+
+      - name: Work out the version from the tag
+        id: version
+        shell: pwsh
+        run: |
+          $tag = '${{ github.event.inputs.tag || github.ref_name }}'
+          if ($tag -notmatch '^v(\d+\.\d+\.\d+)$') { throw "Tag $tag is not like v1.2.3" }
+          "tag=$tag" >> $env:GITHUB_OUTPUT
+          "version=$($Matches[1])" >> $env:GITHUB_OUTPUT
+
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+
+      - name: Install VLC (python-vlc needs libvlc)
+        run: choco install vlc --no-progress -y
+
+      - name: Install Inno Setup
+        run: choco install innosetup --no-progress -y
+
+      - name: Install the project and PyInstaller
+        run: |
+          python -m pip install --upgrade pip
+          pip install "https://github.com/cgohlke/pyicu-build/releases/download/v2.16.2/pyicu-2.16.2-cp312-cp312-win_amd64.whl"
+          pip install -e ".[mp4]" pyinstaller
+
+      - name: Stamp the version into the app
+        # Written after the install, which overwrites it with `git describe`
+        shell: pwsh
+        run: Set-Content -Path openlp/.version -Value '${{ steps.version.outputs.version }}' -NoNewline
+
+      - name: Build the executable
+        run: pyinstaller --noconfirm packaging/openlpug.spec
+
+      - name: Build the installer
+        shell: pwsh
+        run: |
+          & "${env:ProgramFiles(x86)}\Inno Setup 6\ISCC.exe" "/DAppVersion=${{ steps.version.outputs.version }}" packaging\openlpug.iss
+          if ($LASTEXITCODE) { throw "ISCC failed" }
+
+      - name: Write update.json
+        shell: pwsh
+        run: |
+          $version = '${{ steps.version.outputs.version }}'
+          $tag = '${{ steps.version.outputs.tag }}'
+          $installer = Get-Item "packaging\Output\OpenLPUG-Setup-$version.exe"
+          $notes = git tag -l --format='%(contents)' $tag | Out-String
+          $update = [ordered]@{
+            version = $version
+            released = (Get-Date).ToUniversalTime().ToString('yyyy-MM-dd')
+            notes = $notes.Trim()
+            installer = [ordered]@{
+              name = $installer.Name
+              url = "https://github.com/${{ github.repository }}/releases/download/$tag/$($installer.Name)"
+              size = $installer.Length
+              sha256 = (Get-FileHash $installer.FullName -Algorithm SHA256).Hash.ToLower()
+            }
+          }
+          $update | ConvertTo-Json | Set-Content -Path packaging\Output\update.json -Encoding utf8
+
+      - name: Publish the release
+        uses: softprops/action-gh-release@v2
+        with:
+          tag_name: ${{ steps.version.outputs.tag }}
+          name: OpenLPUG ${{ steps.version.outputs.version }}
+          generate_release_notes: true
+          files: |
+            packaging/Output/OpenLPUG-Setup-${{ steps.version.outputs.version }}.exe
+            packaging/Output/update.json
