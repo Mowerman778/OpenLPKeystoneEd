@@ -320,8 +320,9 @@ def test_backup_on_upgrade(mocked_question, mocked_get_version, qapp, settings):
 @patch('openlp.core.app.backup_if_version_changed')
 @patch('openlp.core.app.set_up_web_engine_cache')
 @patch('openlp.core.app.set_up_logging')
-def test_main(mock_logging: MagicMock, mock_web_cache: MagicMock, mock_backup: MagicMock, mock_sys: MagicMock,
-              mock_openlp: MagicMock, mocked_qapp: MagicMock, app_main_env: None):
+@patch('openlp.core.app.offer_upstream_import')
+def test_main(mock_offer_import: MagicMock, mock_logging: MagicMock, mock_web_cache: MagicMock, mock_backup: MagicMock,
+              mock_sys: MagicMock, mock_openlp: MagicMock, mocked_qapp: MagicMock, app_main_env: None):
     """
     Test the main method performs primary actions
     """
@@ -340,7 +341,8 @@ def test_main(mock_logging: MagicMock, mock_web_cache: MagicMock, mock_backup: M
     mock_web_cache.assert_called_once()
     mock_sys.exit.assert_called_once()
     mocked_qapp.setOrganizationName.assert_called_once_with('OpenLP')
-    mocked_qapp.setApplicationName.assert_called_once_with('OpenLP')
+    mocked_qapp.setApplicationName.assert_called_once_with('OpenLPKeystone')
+    mock_offer_import.assert_called_once()
     mocked_qapp.setOrganizationDomain.assert_called_once_with('openlp.org')
 
 

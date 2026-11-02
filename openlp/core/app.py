@@ -46,6 +46,7 @@ from openlp.core.common.path import create_paths, resolve
 from openlp.core.common.platform import is_macosx, is_win
 from openlp.core.common.registry import Registry
 from openlp.core.common.settings import Settings
+from openlp.core.common.upstreamimport import import_upstream, should_offer_import
 from openlp.core.display.screens import ScreenList
 from openlp.core.display.webengine import init_webview_custom_schemes, set_webview_display_path
 from openlp.core.lib.filelock import FileLock
@@ -444,6 +445,35 @@ def apply_dpi_adjustments_stage_application(hidpi_mode: HiDPIMode, application: 
         application.setAttribute(QtCore.Qt.AA_UseHighDpiPixmaps, True)
 
 
+def offer_upstream_import(settings):
+    """
+    On the first start, offer to copy the songs, Bibles, themes and settings of a normal OpenLP on this computer.
+
+    :param Settings settings: The settings object
+    """
+    if not should_offer_import(settings):
+        return
+    answer = QtWidgets.QMessageBox.question(
+        None, translate('OpenLP', 'Copy From OpenLP'),
+        translate('OpenLP', 'OpenLP is also installed on this computer.\n\n'
+                            'Copy its songs, Bibles, themes, services and settings into Keystone Edition?\n\n'
+                            'They are copied, not moved: OpenLP keeps working as before, and from now on changes '
+                            'made in one are not seen in the other.'),
+        QtWidgets.QMessageBox.StandardButtons(QtWidgets.QMessageBox.Yes | QtWidgets.QMessageBox.No),
+        QtWidgets.QMessageBox.Yes)
+    if answer != QtWidgets.QMessageBox.Yes:
+        return
+    QtWidgets.QApplication.setOverrideCursor(QtCore.Qt.WaitCursor)
+    try:
+        is_copied = import_upstream(settings, AppLocation.get_data_path())
+    finally:
+        QtWidgets.QApplication.restoreOverrideCursor()
+    if not is_copied:
+        QtWidgets.QMessageBox.warning(
+            None, translate('OpenLP', 'Copy From OpenLP'),
+            translate('OpenLP', 'Some of OpenLP\'s data could not be copied. The log file has the details.'))
+
+
 def setup_portable_settings(portable_path: Path | str | None) -> Settings:
     """Set up the portable settings"""
     Settings.setDefaultFormat(Settings.IniFormat)
@@ -502,11 +532,12 @@ def main():
     app = OpenLP()
     Registry.create()
     QtWidgets.QApplication.setOrganizationName('OpenLP')
-    QtWidgets.QApplication.setApplicationName('OpenLP')
+    # Not OpenLP's own name, so the settings are kept apart from a normal OpenLP on the same computer
+    QtWidgets.QApplication.setApplicationName('OpenLPKeystone')
     QtWidgets.QApplication.setOrganizationDomain('openlp.org')
     if args.portable:
         # This has to be done here so that we can load the settings before instantiating the application object
-        QtWidgets.QApplication.setApplicationName('OpenLPPortable')
+        QtWidgets.QApplication.setApplicationName('OpenLPKeystonePortable')
         portable_path, settings = setup_portable_settings(args.portablepath)
     else:
         settings = Settings()
@@ -547,6 +578,7 @@ def main():
     else:
         set_up_logging(AppLocation.get_directory(AppLocation.CacheDir))
         set_up_web_engine_cache(AppLocation.get_directory(AppLocation.CacheDir) / 'web_cache')
+        offer_upstream_import(settings)
     # Help > Debug Logging turns on detailed logging without needing the -l debug command line option
     if settings.value('advanced/debug logging') is True:
         log.setLevel(logging.DEBUG)

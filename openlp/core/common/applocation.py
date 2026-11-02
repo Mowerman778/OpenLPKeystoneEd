@@ -39,6 +39,9 @@ log = logging.getLogger(__name__)
 
 FROZEN_APP_PATH = Path(sys.argv[0]).parent
 APP_PATH = Path(openlp.__file__).parent
+# Keystone Edition keeps its data apart from a normal OpenLP installed on the same computer
+APP_FOLDER_NAME = 'openlpkeystone'
+UPSTREAM_FOLDER_NAME = 'openlp'
 
 
 class AppLocation(object):
@@ -120,12 +123,22 @@ class AppLocation(object):
         create_paths(path)
         return path
 
+    @staticmethod
+    def get_upstream_data_directory():
+        """
+        Return the default data directory of a normal OpenLP installed on the same computer.
 
-def _get_os_dir_path(dir_type):
+        :rtype: Path
+        """
+        return resolve(_get_os_dir_path(AppLocation.DataDir, UPSTREAM_FOLDER_NAME))
+
+
+def _get_os_dir_path(dir_type, folder_name=APP_FOLDER_NAME):
     """
     Return a path based on which OS and environment we are running in.
 
     :param dir_type: AppLocation Enum of the requested path type
+    :param str folder_name: The application's folder name, which is different for a normal OpenLP
     :return: The requested path
     :rtype: Path
     """
@@ -135,14 +148,15 @@ def _get_os_dir_path(dir_type):
         if directory.exists():
             return directory
     if is_win():
-        openlp_folder_path = Path(os.getenv('APPDATA'), 'openlp')
+        openlp_folder_path = Path(os.getenv('APPDATA'), folder_name)
         if dir_type == AppLocation.DataDir:
             return openlp_folder_path / 'data'
         elif dir_type == AppLocation.LanguageDir:
             return Path(openlp.__file__).parent
         return openlp_folder_path
 
-    dirs = PlatformDirs('openlp', multipath=True)
+    # Translations are installed under OpenLP's own name
+    dirs = PlatformDirs(UPSTREAM_FOLDER_NAME if dir_type == AppLocation.LanguageDir else folder_name, multipath=True)
     if is_macosx():
         openlp_folder_path = Path(dirs.user_data_dir)
         if dir_type == AppLocation.DataDir:
@@ -165,5 +179,5 @@ def _get_os_dir_path(dir_type):
         elif dir_type == AppLocation.CacheDir:
             return Path(dirs.user_cache_dir)
         if dir_type == AppLocation.DataDir:
-            return Path(os.getenv('HOME'), '.openlp', 'data')
-        return Path(os.getenv('HOME'), '.openlp')
+            return Path(os.getenv('HOME'), '.' + folder_name, 'data')
+        return Path(os.getenv('HOME'), '.' + folder_name)

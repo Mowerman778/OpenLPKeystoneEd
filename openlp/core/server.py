@@ -40,7 +40,8 @@ class Server(QtCore.QObject, LogMixin):
         self.out_socket = QtNetwork.QLocalSocket()
         self.server: Optional[QtNetwork.QLocalServer] = None
         self.file_name: Optional[Path | str] = None
-        self.id = 'OpenLPDual'
+        # Not OpenLP's own name, so a normal OpenLP that is running is not mistaken for this one
+        self.id = 'OpenLPKeystoneDual'
         self._ms_waited = 0
 
     def is_another_instance_running(self) -> bool:
