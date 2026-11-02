@@ -39,8 +39,11 @@ log = logging.getLogger(__name__)
 
 FROZEN_APP_PATH = Path(sys.argv[0]).parent
 APP_PATH = Path(openlp.__file__).parent
-# Keystone Edition keeps its data apart from a normal OpenLP installed on the same computer
-APP_FOLDER_NAME = 'openlpkeystone'
+# Keystone Edition keeps its data apart from a normal OpenLP installed on the same computer, and when run from source
+# code it keeps its data apart from the installed Keystone too, so testing never changes the real data
+IS_INSTALLED = bool(getattr(sys, 'frozen', False))
+APP_FOLDER_NAME = 'openlpkeystone' if IS_INSTALLED else 'openlpkeystonedev'
+SETTINGS_APP_NAME = 'OpenLPKeystone' if IS_INSTALLED else 'OpenLPKeystoneDev'
 UPSTREAM_FOLDER_NAME = 'openlp'
 
 

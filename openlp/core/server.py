@@ -23,6 +23,7 @@ from typing import Optional
 
 from PyQt5 import QtCore, QtNetwork
 
+from openlp.core.common.applocation import SETTINGS_APP_NAME
 from openlp.core.common.mixins import LogMixin
 from openlp.core.common.registry import Registry
 
@@ -40,8 +41,9 @@ class Server(QtCore.QObject, LogMixin):
         self.out_socket = QtNetwork.QLocalSocket()
         self.server: Optional[QtNetwork.QLocalServer] = None
         self.file_name: Optional[Path | str] = None
-        # Not OpenLP's own name, so a normal OpenLP that is running is not mistaken for this one
-        self.id = 'OpenLPKeystoneDual'
+        # Not OpenLP's own name, so a normal OpenLP (or the installed Keystone, when run from source code) that is
+        # running is not mistaken for this one
+        self.id = SETTINGS_APP_NAME + 'Dual'
         self._ms_waited = 0
 
     def is_another_instance_running(self) -> bool:

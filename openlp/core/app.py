@@ -32,13 +32,14 @@ import sys
 import time
 from datetime import datetime
 from pathlib import Path
-from shutil import copytree, move
+from shutil import copytree
 from traceback import format_exception
 
+from packaging.version import InvalidVersion, parse
 from PyQt5 import QtCore, QtGui, QtWebEngineWidgets, QtWidgets  # noqa
 
 from openlp.core.api.deploy import check_for_remote_update
-from openlp.core.common.applocation import AppLocation
+from openlp.core.common.applocation import SETTINGS_APP_NAME, AppLocation
 from openlp.core.common.enum import HiDPIMode
 from openlp.core.common.i18n import LanguageManager, UiStrings, translate
 from openlp.core.common.mixins import LogMixin
@@ -338,67 +339,49 @@ def set_up_web_engine_cache(web_cache_path):
 
 def backup_if_version_changed(settings):
     """
-    Check version of settings and the application version and backup if the version is different.
-    Returns true if a backup was not required or the backup succeeded,
-    false if backup required but was cancelled or failed.
+    Back up the settings before they are upgraded to a newer format.
+    Returns true if a backup was not required or the backup succeeded.
+
+    Keystone Edition: OpenLP moves the data folder away and clears the settings when an older version starts, but
+    every Keystone version keeps its data in OpenLP 3.1.7's format, so an older one carries on with the data instead.
 
     :param Settings settings: The settings object
     :rtype: bool
     """
-    is_downgrade = get_version()['version'] < settings.value('core/application version')
-    # No need to backup if version matches and we're not downgrading
-    if not (settings.version_mismatched() and settings.value('core/has run wizard')) and not is_downgrade:
+    if is_older_version(get_version()['version'], settings.value('core/application version')):
+        log.warning('Started an older version than last time ({stored}), keeping the data'.format(
+            stored=settings.value('core/application version')))
+    # No need to backup if the settings' format matches
+    if not (settings.version_mismatched() and settings.value('core/has run wizard')):
         return True
-    now = datetime.now()
     data_folder_path = AppLocation.get_data_path()
-    timestamp = time.strftime("%Y%m%d-%H%M%S")
-    data_folder_backup_path = data_folder_path.with_name(data_folder_path.name + '-' + timestamp)
-    # Warning if OpenLP is downgrading
-    if is_downgrade:
-        close_result = QtWidgets.QMessageBox.warning(
-            None, translate('OpenLP', 'Downgrade'),
-            translate('OpenLP', 'OpenLP has found a configuration file created by a newer version of OpenLP. '
-                      'OpenLP will start with a fresh install as downgrading data is not supported. Any existing data '
-                      'will be backed up to:\n\n{data_folder_backup_path}\n\n'
-                      'Do you want to continue?').format(data_folder_backup_path=data_folder_backup_path),
-            QtWidgets.QMessageBox.StandardButtons(QtWidgets.QMessageBox.Yes | QtWidgets.QMessageBox.No),
-            QtWidgets.QMessageBox.No)
-        if close_result == QtWidgets.QMessageBox.No:
-            # Return false as backup failed.
-            return False
-    # Backup the settings
-    if settings.version_mismatched() or is_downgrade:
-        settings_back_up_path = data_folder_path / (now.strftime('%Y-%m-%d %H-%M') + '.conf')
-        log.info(f'Settings are being backed up to {settings_back_up_path}')
-        if not is_downgrade:
-            # Inform user of settings backup location
-            QtWidgets.QMessageBox.information(
-                None, translate('OpenLP', 'Settings Backup'),
-                translate('OpenLP', 'Your settings are about to be upgraded. A backup will be created at '
-                                    '{settings_back_up_path}').format(settings_back_up_path=settings_back_up_path))
-        # Backup the settings
-        try:
-            settings.export(settings_back_up_path)
-        except OSError:
-            QtWidgets.QMessageBox.warning(
-                None, translate('OpenLP', 'Settings Backup'),
-                translate('OpenLP', 'Settings back up failed.\n\nOpenLP will attempt to continue.'))
-    # Backup and remove data folder if downgrading
-    if is_downgrade:
-        log.info(f'Data folder being backed up to {data_folder_backup_path}')
-        try:
-            # We don't want to use data from newer versions, so rather than a copy, we'll just move/rename
-            move(data_folder_path, data_folder_backup_path)
-        except OSError:
-            log.exception('Failed to backup data for downgrade')
-            QtWidgets.QMessageBox.critical(None, translate('OpenLP', 'OpenLP Backup'),
-                                           translate('OpenLP', 'Backup of the data folder failed during downgrade.'))
-            return False
-    # Reset all the settings if we're downgrading
-    if is_downgrade:
-        settings.clear()
+    settings_back_up_path = data_folder_path / (datetime.now().strftime('%Y-%m-%d %H-%M') + '.conf')
+    log.info(f'Settings are being backed up to {settings_back_up_path}')
+    # Inform user of settings backup location
+    QtWidgets.QMessageBox.information(
+        None, translate('OpenLP', 'Settings Backup'),
+        translate('OpenLP', 'Your settings are about to be upgraded. A backup will be created at '
+                            '{settings_back_up_path}').format(settings_back_up_path=settings_back_up_path))
+    try:
+        settings.export(settings_back_up_path)
+    except OSError:
+        QtWidgets.QMessageBox.warning(
+            None, translate('OpenLP', 'Settings Backup'),
+            translate('OpenLP', 'Settings back up failed.\n\nOpenLP will attempt to continue.'))
     settings.upgrade_settings()
     return True
+
+
+def is_older_version(version, other_version):
+    """
+    Compare versions as numbers, so that 0.0.10 is newer than 0.0.9
+
+    :return: True if version is older than other_version, False if it is not or either cannot be read
+    """
+    try:
+        return parse(str(version)) < parse(str(other_version))
+    except InvalidVersion:
+        return False
 
 
 def apply_dpi_adjustments_stage_qt(hidpi_mode, qt_args):
@@ -534,11 +517,11 @@ def main():
     Registry.create()
     QtWidgets.QApplication.setOrganizationName('OpenLP')
     # Not OpenLP's own name, so the settings are kept apart from a normal OpenLP on the same computer
-    QtWidgets.QApplication.setApplicationName('OpenLPKeystone')
+    QtWidgets.QApplication.setApplicationName(SETTINGS_APP_NAME)
     QtWidgets.QApplication.setOrganizationDomain('openlp.org')
     if args.portable:
         # This has to be done here so that we can load the settings before instantiating the application object
-        QtWidgets.QApplication.setApplicationName('OpenLPKeystonePortable')
+        QtWidgets.QApplication.setApplicationName(SETTINGS_APP_NAME + 'Portable')
         portable_path, settings = setup_portable_settings(args.portablepath)
     else:
         settings = Settings()

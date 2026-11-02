@@ -99,5 +99,5 @@ def test_keystone_data_folder_is_apart_from_openlp(mocked_getenv, mocked_is_win)
     upstream_path = AppLocation.get_upstream_data_directory()
 
     # THEN: They are different folders
-    assert keystone_path == Path('C:\\Users\\Someone\\AppData\\Roaming', 'openlpkeystone', 'data')
+    assert keystone_path == Path('C:\\Users\\Someone\\AppData\\Roaming', 'openlpkeystonedev', 'data')
     assert upstream_path.parts[-2:] == ('openlp', 'data')

@@ -21,7 +21,6 @@
 import sys
 from argparse import Namespace
 from pathlib import Path
-from tempfile import mkdtemp
 from unittest.mock import MagicMock, patch
 
 import pytest
@@ -31,7 +30,8 @@ from PyQt5 import QtCore, QtWidgets
 # Mock QtWebEngineWidgets
 sys.modules['PyQt5.QtWebEngineWidgets'] = MagicMock()
 
-from openlp.core.app import parse_options, backup_if_version_changed, main as app_main, setup_portable_settings
+from openlp.core.app import parse_options, backup_if_version_changed, is_older_version, main as app_main, \
+    setup_portable_settings
 from openlp.core.common.platform import is_win
 from openlp.core.common.settings import Settings
 
@@ -341,45 +341,43 @@ def test_main(mock_offer_import: MagicMock, mock_logging: MagicMock, mock_web_ca
     mock_web_cache.assert_called_once()
     mock_sys.exit.assert_called_once()
     mocked_qapp.setOrganizationName.assert_called_once_with('OpenLP')
-    mocked_qapp.setApplicationName.assert_called_once_with('OpenLPKeystone')
+    mocked_qapp.setApplicationName.assert_called_once_with('OpenLPKeystoneDev')
     mock_offer_import.assert_called_once()
     mocked_qapp.setOrganizationDomain.assert_called_once_with('openlp.org')
 
 
-@patch('openlp.core.app.QtWidgets.QMessageBox.warning')
+@patch('openlp.core.app.QtWidgets.QMessageBox')
 @patch('openlp.core.app.get_version')
 @patch('openlp.core.app.AppLocation.get_data_path')
-@patch('openlp.core.app.move')
-def test_main_future_settings(mock_move: MagicMock, mock_get_path: MagicMock, mock_version: MagicMock,
-                              mock_warn: MagicMock, app_main_env: None, settings: Settings):
+def test_main_future_settings(mock_get_path: MagicMock, mock_version: MagicMock, MockMessageBox: MagicMock,
+                              app_main_env: None, settings: Settings, tmp_path: Path):
     """
-    Test the backup_if_version_changed method backs up data if version from the future and user consents
+    An older Keystone than last time carries on with the data: it is not moved away and the settings are not cleared
     """
-    # GIVEN: A mocked openlp instance with mocked future settings
-    settings.from_future = MagicMock(return_value=True)
-    settings.version_mismatched = MagicMock(return_value=True)
+    # GIVEN: Settings last used by a newer version
+    (tmp_path / 'songs').mkdir()
+    mock_get_path.return_value = tmp_path
+    settings.version_mismatched = MagicMock(return_value=False)
     settings.clear = MagicMock()
-    settings.upgrade_settings = MagicMock()
-    settings.setValue('core/application version', '3.0.1')
-    mock_warn.return_value = QtWidgets.QMessageBox.Yes
-    MOCKED_VERSION = {
-        'full': '2.9.3',
-        'version': '2.9.3',
-        'build': 'None'
-    }
-    mock_version.return_value = MOCKED_VERSION
-    temp_folder = Path(mkdtemp())
-    mock_get_path.return_value = temp_folder
+    settings.setValue('core/application version', '0.0.10')
+    mock_version.return_value = {'full': '0.0.9', 'version': '0.0.9', 'build': None}
 
-    # WHEN: the main method is run
+    # WHEN: The older version starts
     result = backup_if_version_changed(settings)
 
-    # THEN: Check everything was backed up, the settings were cleared and the warn prompt was shown
+    # THEN: It carries on, with the data where it was and the settings kept, and without asking
     assert result is True
-    mock_move.assert_called_once()
-    settings.clear.assert_called_once_with()
-    settings.upgrade_settings.assert_called_once_with()
-    mock_warn.assert_called_once()
+    assert (tmp_path / 'songs').is_dir()
+    settings.clear.assert_not_called()
+    MockMessageBox.warning.assert_not_called()
+
+
+@pytest.mark.parametrize('version, other_version, expected', [('0.0.9', '0.0.10', True),
+                                                              ('0.0.10', '0.0.9', False),
+                                                              ('1.0.0', '1.0.0', False), ('1.0.0', '', False)])
+def test_is_older_version(version, other_version, expected):
+    """Versions are compared as numbers, and an unreadable version is never newer"""
+    assert is_older_version(version, other_version) is expected
 
 
 if is_win():
