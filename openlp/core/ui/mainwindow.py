@@ -46,6 +46,7 @@ from openlp.core.common.path import create_paths, resolve
 from openlp.core.common.platform import is_macosx, is_win
 from openlp.core.common.registry import Registry
 from openlp.core.common.settings import Settings
+from openlp.core.common.updater import get_current_version, is_newer, today_text
 from openlp.core.display.screens import ScreenList
 from openlp.core.display.simulatedprojector import is_simulating, turn_off as turn_off_simulated_projector, \
     turn_on as turn_on_simulated_projector
@@ -67,6 +68,7 @@ from openlp.core.ui.settingsform import SettingsForm
 from openlp.core.ui.shortcutlistform import ShortcutListForm
 from openlp.core.ui.style import PROGRESSBAR_STYLE, get_library_stylesheet
 from openlp.core.ui.thememanager import ThemeManager
+from openlp.core.ui.updateform import UpdateForm
 from openlp.core.version import get_version
 from openlp.core.widgets.dialogs import FileDialog
 from openlp.core.widgets.docks import MediaDockManager, OpenLPDockWidget
@@ -331,6 +333,8 @@ class Ui_MainWindow(object):
                                               can_shortcuts=True, category=UiStrings().Help,
                                               triggers=self.on_help_clicked)
         self.web_site_item = create_action(main_window, 'webSiteItem', can_shortcuts=True, category=UiStrings().Help)
+        self.updates_item = create_action(main_window, 'updatesItem', icon=UiIcons().download,
+                                          category=UiStrings().Help, triggers=self.on_updates_clicked)
         self.version_history_item = create_action(main_window, 'versionHistoryItem', icon=UiIcons().info,
                                                   category=UiStrings().Help,
                                                   triggers=self.on_version_history_clicked)
@@ -383,7 +387,8 @@ class Ui_MainWindow(object):
         add_actions(self.tools_menu, (self.tools_first_time_wizard, None))
         add_actions(self.tools_menu, [self.update_theme_images])
         add_actions(self.help_menu, (self.user_manual_item, None, self.web_site_item, None,
-                                     self.version_history_item, self.debug_report_item, self.debug_logging_item,
+                                     self.updates_item, self.version_history_item, self.debug_report_item,
+                    self.debug_logging_item,
                                      None, self.about_item))
         add_actions(self.menu_bar, (self.file_menu.menuAction(), self.view_menu.menuAction(),
                     self.tools_menu.menuAction(), self.settings_menu.menuAction(), self.help_menu.menuAction()))
@@ -494,6 +499,9 @@ class Ui_MainWindow(object):
         self.search_shortcut_action.setToolTip(
             translate('OpenLP.MainWindow', 'Jump to the search box of the current active plugin.'))
         self.web_site_item.setText(translate('OpenLP.MainWindow', '&Web Site'))
+        self.updates_item.setText(translate('OpenLP.MainWindow', '&Updates...'))
+        self.updates_item.setStatusTip(translate('OpenLP.MainWindow', 'Check for a newer version of Keystone and '
+                                                 'install it.'))
         self.version_history_item.setText(translate('OpenLP.MainWindow', '&Version History...'))
         self.version_history_item.setStatusTip(translate('OpenLP.MainWindow', 'See which version you have and what '
                                                                               'changed in each version'))
@@ -879,6 +887,26 @@ class MainWindow(QtWidgets.QMainWindow, Ui_MainWindow, LogMixin, RegistryPropert
         # This was asked for, so don't warn that the screen setup has changed
         self.should_show_screen_change_message = False
         Registry().execute('config_screen_changed')
+
+    def on_updates_clicked(self):
+        """
+        Help > Updates: check for a newer version and install it
+        """
+        UpdateForm(self).exec()
+
+    def on_update_checked(self, info: dict):
+        """
+        The check for updates made at startup has found the latest release: offer it if it is newer
+        """
+        self.settings.setValue('core/last version test', today_text())
+        if not is_newer(info['version'], get_current_version()):
+            return
+        answer = QtWidgets.QMessageBox.question(
+            self, translate('OpenLP.MainWindow', 'Update Available'),
+            translate('OpenLP.MainWindow', 'Keystone {version} is available. See what is new and install it?').format(
+                version=info['version']))
+        if answer == QtWidgets.QMessageBox.Yes:
+            UpdateForm(self).exec(info)
 
     def on_hide_projector_toggled(self, checked: bool):
         """

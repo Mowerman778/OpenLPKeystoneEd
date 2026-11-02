@@ -37,8 +37,14 @@ jobs:
         run: |
           $tag = '${{ github.event.inputs.tag || github.ref_name }}'
           if ($tag -notmatch '^v(\d+\.\d+\.\d+)$') { throw "Tag $tag is not like v1.2.3" }
+          $version = $Matches[1]
+          # A real release must match the version shown in the app; v0.x.y tags are test builds
+          $keystone = (Select-String -Path openlp/core/common/keystone.py -Pattern "^KEYSTONE_VERSION = '(.+)'").Matches[0].Groups[1].Value
+          if (-not $version.StartsWith('0.') -and $version -ne $keystone) {
+            throw "Tag $tag does not match KEYSTONE_VERSION $keystone in openlp/core/common/keystone.py"
+          }
           "tag=$tag" >> $env:GITHUB_OUTPUT
-          "version=$($Matches[1])" >> $env:GITHUB_OUTPUT
+          "version=$version" >> $env:GITHUB_OUTPUT
 
       - uses: actions/setup-python@v5
         with:

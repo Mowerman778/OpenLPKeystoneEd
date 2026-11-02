@@ -46,6 +46,7 @@ from openlp.core.common.path import create_paths, resolve
 from openlp.core.common.platform import is_macosx, is_win
 from openlp.core.common.registry import Registry
 from openlp.core.common.settings import Settings
+from openlp.core.common.updater import check_for_updates_on_startup
 from openlp.core.common.upstreamimport import import_upstream, should_offer_import
 from openlp.core.display.screens import ScreenList
 from openlp.core.display.webengine import init_webview_custom_schemes, set_webview_display_path
@@ -60,7 +61,7 @@ from openlp.core.ui.firsttimelanguageform import FirstTimeLanguageForm
 from openlp.core.ui.mainwindow import MainWindow
 from openlp.core.ui.splashscreen import SplashScreen
 from openlp.core.ui.style import get_application_stylesheet, set_default_theme
-from openlp.core.version import check_for_update, get_version
+from openlp.core.version import get_version
 
 
 __all__ = ['OpenLP', 'main']
@@ -149,8 +150,8 @@ class OpenLP(QtCore.QObject, LogMixin):
         QtWidgets.QApplication.processEvents()
         if not has_run_wizard:
             self.main_window.first_time()
-        if self.settings.value('core/update check'):
-            check_for_update(self.main_window)
+        # Keystone's own updates, from its GitHub releases, rather than OpenLP's
+        check_for_updates_on_startup(self.main_window)
         if self.settings.value('api/update check'):
             check_for_remote_update(self.main_window)
         self.main_window.is_display_blank()

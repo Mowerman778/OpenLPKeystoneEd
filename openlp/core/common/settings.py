@@ -287,6 +287,8 @@ class Settings(QtCore.QSettings):
         'core/songselect password': '',
         'core/songselect username': '',
         'core/update check': True,
+        # Keystone Edition's updates: the GitHub repository whose releases hold them
+        'core/update source': 'https://github.com/Mowerman778/OpenLPKeystoneEd',
         'core/view mode': 'default',
         # The other display settings (display position and dimensions) are defined in the ScreenList class due to a
         # circular dependency.

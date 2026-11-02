@@ -46,3 +46,5 @@ Name: "{autodesktop}\{#AppName}"; Filename: "{app}\OpenLPUG.exe"; Tasks: desktop
 
 [Run]
 Filename: "{app}\OpenLPUG.exe"; Description: "Launch {#AppName}"; Flags: nowait postinstall skipifsilent
+; Help > Updates runs the installer with /SILENT once the app has closed: start it again, as the user, not as admin
+Filename: "{app}\OpenLPUG.exe"; Flags: nowait skipifnotsilent runasoriginaluser
