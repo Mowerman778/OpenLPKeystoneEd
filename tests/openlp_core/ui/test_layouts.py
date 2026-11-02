@@ -552,3 +552,18 @@ def test_docked_display_panel_not_redrawn(manager, window):
     with patch.object(window.preview_dock, 'hide') as mocked_hide:
         manager._redraw_panel(window.preview_dock)
     mocked_hide.assert_not_called()
+
+
+def test_redraw_main_window(manager):
+    """After a layout is applied the whole window is redrawn, so moved panels leave no old pictures behind"""
+    # GIVEN: A main window with a visible panel
+    panel = QtWidgets.QWidget(manager.window)
+    manager.window.show()
+    panel.show()
+    panel.update = MagicMock()
+
+    # WHEN: The window is redrawn
+    manager.redraw_main_window()
+
+    # THEN: The panel was asked to redraw too
+    panel.update.assert_called_once_with()

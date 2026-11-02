@@ -314,6 +314,17 @@ class LayoutManager(QtCore.QObject, RegistryProperties):
         self.setup_bar.setVisible(self.in_setup_mode())
         self.refresh_layout_combo()
         QtCore.QTimer.singleShot(300, self.keep_title_bars_on_screen)
+        # Panels that moved can leave old pictures of themselves behind, until the window is redrawn
+        QtCore.QTimer.singleShot(500, self.redraw_main_window)
+
+    def redraw_main_window(self):
+        """
+        Redraw the whole main window and everything in it, as minimising and restoring it would
+        """
+        self.window.update()
+        for widget in self.window.findChildren(QtWidgets.QWidget):
+            if widget.isVisible():
+                widget.update()
 
     def _apply_built_in_layout(self, name):
         """
