@@ -12,10 +12,11 @@ name: Release
 on:
   push:
     tags: ['v*.*.*']
+  # Run by hand to rebuild a release: builds the branch it is run on and publishes it under the given tag
   workflow_dispatch:
     inputs:
       tag:
-        description: 'Existing tag to (re)build, e.g. v1.0.0'
+        description: 'Tag to publish the build under, e.g. v1.0.0'
         required: true
 
 permissions:
@@ -28,7 +29,6 @@ jobs:
     steps:
       - uses: actions/checkout@v4
         with:
-          ref: ${{ github.event.inputs.tag || github.ref }}
           fetch-depth: 0
 
       - name: Work out the version from the tag
