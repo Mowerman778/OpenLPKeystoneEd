@@ -51,9 +51,9 @@ jobs:
         run: choco install innosetup --no-progress -y
 
       - name: Install the project and PyInstaller
+        # Not PyICU: `import icu` crashes on Windows (see setup.py), and OpenLP sorts without it
         run: |
           python -m pip install --upgrade pip
-          pip install "https://github.com/cgohlke/pyicu-build/releases/download/v2.16.2/pyicu-2.16.2-cp312-cp312-win_amd64.whl"
           pip install -e ".[mp4]" pyinstaller
 
       - name: Stamp the version into the app
