@@ -1110,3 +1110,37 @@ def test_on_context_menu_requested_shows_the_menu_at_the_click(display_window_en
     display_window.webview.mapToGlobal.assert_called_once_with(position)
     mocked_menu.exec.assert_called_once_with(global_position)
     assert display_window.isHidden() is True
+
+
+def test_hidden_by_user_stays_hidden(display_window_env, mock_settings):
+    """
+    View > Hide Projector Window keeps the window hidden, even when the Live panel shows the display
+    """
+    # GIVEN: A display window the user has hidden
+    display_window = DisplayWindow()
+    display_window.run_in_display = MagicMock()
+    display_window.set_hidden_by_user(True)
+
+    # WHEN: The Live panel shows the display
+    display_window.show_display()
+
+    # THEN: It stays hidden, but remembers that it is showing
+    assert display_window.isHidden() is True
+    assert display_window.hide_mode is None
+
+
+@pytest.mark.parametrize('hide_mode, is_shown', [(None, True), (HideMode.Blank, True), (HideMode.Screen, False)])
+def test_show_after_hidden_by_user(hide_mode, is_shown, display_window_env, mock_settings):
+    """
+    Showing the projector window again brings it back as the Live panel left it: not at all if it shows the desktop
+    """
+    # GIVEN: A display window the user has hidden, in the given hide mode
+    display_window = DisplayWindow()
+    display_window.set_hidden_by_user(True)
+    display_window.hide_mode = hide_mode
+
+    # WHEN: The user shows it again
+    display_window.set_hidden_by_user(False)
+
+    # THEN: It is shown unless the Live panel is showing the desktop
+    assert display_window.isHidden() is not is_shown

@@ -255,6 +255,8 @@ class Ui_MainWindow(object):
                                                       checked=self.settings.value('core/simulated projector'),
                                                       category=UiStrings().View,
                                                       triggers=self.on_simulated_projector_toggled)
+        self.view_hide_projector = create_action(main_window, 'viewHideProjector', can_shortcuts=True, checked=False,
+                                                 category=UiStrings().View, triggers=self.on_hide_projector_toggled)
         self.lock_panel = create_action(main_window, 'lockPanel', can_shortcuts=True, checked=panel_locked,
                                         category=UiStrings().View, triggers=self.set_lock_panel)
         action_list.add_category(UiStrings().ViewMode, CategoryOrder.standard_menu)
@@ -359,6 +361,7 @@ class Ui_MainWindow(object):
         add_actions(self.view_menu, (self.view_mode_menu.menuAction(), None, self.view_media_manager_item,
                     self.view_projector_manager_item, self.view_service_manager_item, self.view_theme_manager_item,
                     None, self.view_preview_panel, self.view_live_panel, self.view_simulated_projector,
+                    self.view_hide_projector,
                     None, self.lock_panel))
         # i18n add Language Actions
         add_actions(self.settings_language_menu, (self.auto_language_item, None))
@@ -471,6 +474,9 @@ class Ui_MainWindow(object):
             translate('OpenLP.MainWindow', 'Toggle visibility of the Preview.'))
         self.view_live_panel.setText(translate('OpenLP.MainWindow', 'Li&ve'))
         self.view_live_panel.setToolTip(translate('OpenLP.MainWindow', 'Hide or show Live'))
+        self.view_hide_projector.setText(translate('OpenLP.MainWindow', '&Hide Projector Window'))
+        self.view_hide_projector.setStatusTip(
+            translate('OpenLP.MainWindow', 'Hide the projector window so the windows behind it can be reached.'))
         self.view_simulated_projector.setText(translate('OpenLP.MainWindow', 'Simulated &Projector Mode'))
         self.view_simulated_projector.setStatusTip(
             translate('OpenLP.MainWindow', 'No projector connected? Show the live output in a movable window, '
@@ -874,6 +880,14 @@ class MainWindow(QtWidgets.QMainWindow, Ui_MainWindow, LogMixin, RegistryPropert
         self.should_show_screen_change_message = False
         Registry().execute('config_screen_changed')
 
+    def on_hide_projector_toggled(self, checked: bool):
+        """
+        Hide the projector window, which stays on top of other windows, so the Live panel and other windows behind it
+        can be reached, or show it again
+        """
+        for display in self.live_controller.displays:
+            display.set_hidden_by_user(checked)
+
     def on_version_history_clicked(self):
         """
         Show the Keystone version and what changed in each version
@@ -1166,6 +1180,8 @@ class MainWindow(QtWidgets.QMainWindow, Ui_MainWindow, LogMixin, RegistryPropert
             self.preview_controller.screen_size_changed()
             self.live_controller.setup_displays()
             self.live_controller.screen_size_changed()
+            # The displays are made afresh and showing, so they are no longer hidden
+            self.view_hide_projector.setChecked(False)
             self.setFocus()
             self.activateWindow()
             self.application.set_normal_cursor()

@@ -1004,3 +1004,20 @@ def test_wait_for_threads_runtime_error(MockApp, main_window_reduced):
     assert mocked_http_thread.isRunning.call_count == 1, 'isRunning() should have been called once'
     mocked_http_thread.wait.assert_not_called()
     mocked_http_thread.terminate.assert_not_called()
+
+
+@pytest.mark.parametrize('checked', [True, False])
+def test_on_hide_projector_toggled(checked, main_window):
+    """
+    View > Hide Projector Window hides or shows every live display
+    """
+    # GIVEN: A main window with two live displays
+    displays = [MagicMock(), MagicMock()]
+    main_window._live_controller = MagicMock(displays=displays)
+
+    # WHEN: Hide Projector Window is ticked or unticked
+    main_window.on_hide_projector_toggled(checked)
+
+    # THEN: Each display is hidden or shown
+    for display in displays:
+        display.set_hidden_by_user.assert_called_once_with(checked)

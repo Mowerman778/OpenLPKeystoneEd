@@ -153,6 +153,8 @@ class DisplayWindow(QtWidgets.QWidget, RegistryProperties, LogMixin):
             self.setAttribute(QtCore.Qt.WA_MacAlwaysShowToolWindow, True)
         self._is_initialised = False
         self._is_manual_close = False
+        # View > Hide Projector Window: kept hidden until the user shows it again
+        self.is_hidden_by_user = False
         self._can_show_startup_screen = can_show_startup_screen
         self._fbo = None
         self.window_title = window_title
@@ -160,8 +162,8 @@ class DisplayWindow(QtWidgets.QWidget, RegistryProperties, LogMixin):
         # Simulated Projector Mode: a normal, movable window (no close button) instead of a borderless full screen one
         self.is_simulated_projector = bool(screen and screen.is_display and screen.simulated_resolution)
         if self.is_simulated_projector:
-            flags = (QtCore.Qt.Window | QtCore.Qt.CustomizeWindowHint | QtCore.Qt.WindowTitleHint |
-                     QtCore.Qt.WindowStaysOnTopHint)
+            # Not kept on top, so it can go behind the Live panel and other windows like any other window
+            flags = QtCore.Qt.Window | QtCore.Qt.CustomizeWindowHint | QtCore.Qt.WindowTitleHint
             self.setWindowTitle(translate('OpenLP.DisplayWindow', 'Simulated Projector (HD 1920x1080)'))
             self._simulated_screen = screen
             self._remember_box_timer = QtCore.QTimer(self)
@@ -297,6 +299,28 @@ class DisplayWindow(QtWidgets.QWidget, RegistryProperties, LogMixin):
         action = menu.exec(global_position)
         if action == minimize_action:
             self.minimize()
+
+    def setVisible(self, visible):
+        """
+        Stay hidden while the user has hidden the projector window, whatever else asks for it to be shown
+        """
+        if visible and getattr(self, 'is_hidden_by_user', False):
+            return
+        super().setVisible(visible)
+
+    def set_hidden_by_user(self, is_hidden):
+        """
+        Hide the projector window so the windows behind it can be used, or show it again. Blanking and showing still
+        change what it shows while it is hidden, so it comes back as the Live panel left it.
+
+        :param bool is_hidden: True to hide the window
+        """
+        self.is_hidden_by_user = is_hidden
+        if is_hidden:
+            self.setVisible(False)
+        elif self.hide_mode != HideMode.Screen and (not self.is_display or self._can_show_on_this_setup()):
+            self.setVisible(True)
+            self.raise_()
 
     def minimize(self):
         """

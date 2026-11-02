@@ -685,6 +685,7 @@ class Settings(QtCore.QSettings):
             'shortcuts/viewMediaManagerItem': [QtGui.QKeySequence(QtCore.Qt.Key_F8)],
             'shortcuts/viewPreviewPanel': [QtGui.QKeySequence(QtCore.Qt.Key_F11)],
             'shortcuts/viewLivePanel': [QtGui.QKeySequence(QtCore.Qt.Key_F12)],
+            'shortcuts/viewHideProjector': [QtGui.QKeySequence(QtCore.Qt.CTRL | QtCore.Qt.Key_F12)],
             'shortcuts/viewServiceManagerItem': [QtGui.QKeySequence(QtCore.Qt.Key_F9)],
             'shortcuts/webSiteItem': []
         })
