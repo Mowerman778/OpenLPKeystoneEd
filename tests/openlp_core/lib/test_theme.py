@@ -21,6 +21,8 @@
 """
 Package to test the openlp.core.lib.theme package.
 """
+import json
+
 import pytest
 from PyQt5 import QtCore
 from pathlib import Path
@@ -366,4 +368,19 @@ def check_theme(theme):
     assert 0 == theme.display_vertical_align, 'display_vertical_align should be 0'
     assert theme.font_footer_bold is False, 'font_footer_bold should be False'
     assert 'Arial' == theme.font_main_name, 'font_main_name should be "Arial"'
-    assert 57 == len(theme.__dict__), 'The theme should have 57 attributes'
+    assert theme.font_footer_wrap is True, 'font_footer_wrap should be True'
+    assert 58 == len(theme.__dict__), 'The theme should have 58 attributes'
+
+
+def test_saved_theme_without_footer_wrap_wraps(mock_geometry):
+    """
+    Themes saved before footer wrapping existed wrap long footers, so the copyright does not run off the screen
+    """
+    # GIVEN: A theme file with no footer wrap setting
+    theme = Theme()
+
+    # WHEN: It is loaded
+    theme.load_theme(json.dumps({'theme_name': 'Old theme', 'font': {'footer': {'size': 10}}}))
+
+    # THEN: Its footer wraps
+    assert theme.font_footer_wrap is True
