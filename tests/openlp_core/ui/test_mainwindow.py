@@ -1021,3 +1021,18 @@ def test_on_hide_projector_toggled(checked, main_window):
     # THEN: Each display is hidden or shown
     for display in displays:
         display.set_hidden_by_user.assert_called_once_with(checked)
+
+
+@patch('openlp.core.ui.mainwindow.QtGui.QDesktopServices.openUrl')
+def test_on_help_clicked_opens_user_manual(mocked_open_url, main_window):
+    """
+    Help > User Manual opens Keystone's own manual, which comes with the program
+    """
+    # GIVEN: The main window
+    # WHEN: Help > User Manual is clicked
+    main_window.on_help_clicked()
+
+    # THEN: The manual in the program's folder is opened
+    url = mocked_open_url.call_args[0][0]
+    assert url.toLocalFile().endswith('core/ui/manual/user-manual.html')
+    assert Path(url.toLocalFile()).is_file()

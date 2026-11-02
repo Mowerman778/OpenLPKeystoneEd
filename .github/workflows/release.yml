@@ -6,7 +6,8 @@
 #
 #   https://github.com/<owner>/<repo>/releases/latest/download/update.json
 #
-# Release notes are taken from the tag's message (`git tag -a v1.0.1 -m "What's new"`), if it has one.
+# To release: set KEYSTONE_VERSION and add the version's changes to the top of VERSION_HISTORY in
+# openlp/core/common/keystone.py, commit, then tag. The changes become the release notes shown in Help > Updates.
 name: Release
 
 on:
@@ -82,7 +83,8 @@ jobs:
           $version = '${{ steps.version.outputs.version }}'
           $tag = '${{ steps.version.outputs.tag }}'
           $installer = Get-Item "packaging\Output\OpenLPUG-Setup-$version.exe"
-          $notes = git tag -l --format='%(contents)' $tag | Out-String
+          # The version's entry in the Version History, as shown in Help > Version History; none for test builds
+          $notes = python scripts/release_notes.py $version | Out-String
           $update = [ordered]@{
             version = $version
             released = (Get-Date).ToUniversalTime().ToString('yyyy-MM-dd')
@@ -95,13 +97,14 @@ jobs:
             }
           }
           $update | ConvertTo-Json | Set-Content -Path packaging\Output\update.json -Encoding utf8
+          Set-Content -Path packaging\Output\notes.md -Value $notes.Trim() -Encoding utf8
 
       - name: Publish the release
         uses: softprops/action-gh-release@v2
         with:
           tag_name: ${{ steps.version.outputs.tag }}
           name: OpenLPUG ${{ steps.version.outputs.version }}
-          generate_release_notes: true
+          body_path: packaging/Output/notes.md
           files: |
             packaging/Output/OpenLPUG-Setup-${{ steps.version.outputs.version }}.exe
             packaging/Output/update.json

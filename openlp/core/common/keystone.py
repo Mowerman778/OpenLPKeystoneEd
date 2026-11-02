@@ -31,7 +31,17 @@ OPENLP_BASE_VERSION = '3.1.7'
 
 # Newest first: (version, date, [changes])
 VERSION_HISTORY = [
-    ('1.0.0', '2026-10-26', [
+    ('1.0.0', '2026-11-03', [
+        'Help > User Manual (F1): a short guide to Keystone, its shortcuts and handy tips',
+        'Help > Updates: install new versions of Keystone from the internet, and check once a day at start-up',
+        'Installs next to a normal OpenLP with its own songs, Bibles and settings, and offers to copy them from '
+        'OpenLP the first time',
+        'Presentations: LibreOffice is more reliable on Windows, and restarts itself if it closes or crashes',
+        'Video Trigger Manager: up to ten video clips on a presentation slide, played by clicking their boxes in Live',
+        'A warning when a presentation has videos that LibreOffice may not play well',
+        'Theme Manager: drag and resize the main text and footer boxes, and set fonts and backgrounds',
+        'View > Hide Projector Window (Ctrl+F12) when it covers the Live panel or other windows',
+        'Long footer lines, such as copyright, wrap onto the next line instead of running off the screen',
         'Screen layouts: "1 Monitor Default", "2 Monitor Default" and your own named layouts (View > Layout)',
         'Layout Setup Mode: unlock panels to move them, including onto a second monitor',
         'Preview and Live are now movable panels',

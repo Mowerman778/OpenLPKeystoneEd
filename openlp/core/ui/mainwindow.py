@@ -964,10 +964,13 @@ class MainWindow(QtWidgets.QMainWindow, Ui_MainWindow, LogMixin, RegistryPropert
 
     def on_help_clicked(self):
         """
-        If is_macosx or is_win, open the local OpenLP help file.
-        Use the Online manual in other cases. (Linux)
+        Open Keystone's own user manual, which comes with the program, or OpenLP's online manual if it is missing
         """
-        webbrowser.open_new('https://manual.openlp.org/')
+        manual_path = AppLocation.get_directory(AppLocation.AppDir) / 'core' / 'ui' / 'manual' / 'user-manual.html'
+        if manual_path.is_file():
+            QtGui.QDesktopServices.openUrl(QtCore.QUrl.fromLocalFile(str(manual_path)))
+        else:
+            webbrowser.open_new('https://manual.openlp.org/')
 
     def on_about_item_clicked(self):
         """

@@ -1,0 +1,259 @@
+<!DOCTYPE html>
+<html lang="en-GB">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Keystone's OpenLP: User Manual</title>
+<style>
+  :root { --ink: #1f2933; --muted: #52606d; --line: #d9e2ec; --accent: #1e5aa8; --tip: #eef5ff; --warn: #fff5e6; }
+  body { font-family: "Segoe UI", Arial, sans-serif; color: var(--ink); background: #fff; margin: 0; line-height: 1.5; }
+  main { max-width: 860px; margin: 0 auto; padding: 24px 16px 64px; }
+  h1 { color: var(--accent); margin-bottom: 0; }
+  .sub { color: var(--muted); margin-top: 4px; }
+  h2 { border-bottom: 2px solid var(--line); padding-bottom: 4px; margin-top: 40px; color: var(--accent); }
+  h3 { margin-bottom: 4px; }
+  nav { background: #f5f7fa; border: 1px solid var(--line); border-radius: 6px; padding: 8px 16px; }
+  nav ol { columns: 2; margin: 8px 0; }
+  table { border-collapse: collapse; width: 100%; margin: 8px 0 16px; }
+  th, td { border: 1px solid var(--line); padding: 6px 10px; text-align: left; vertical-align: top; }
+  th { background: #f5f7fa; }
+  kbd { border: 1px solid #b8c4ce; border-bottom-width: 2px; border-radius: 4px; padding: 0 6px;
+        font-family: Consolas, monospace; font-size: 0.9em; background: #fafbfc; white-space: nowrap; }
+  .tip, .warn { border-left: 4px solid var(--accent); background: var(--tip); padding: 8px 12px; margin: 12px 0;
+                border-radius: 0 6px 6px 0; }
+  .warn { border-left-color: #d97706; background: var(--warn); }
+  .menu { font-weight: 600; }
+  @media print { nav { display: none; } h2 { page-break-after: avoid; } a { color: inherit; text-decoration: none; } }
+</style>
+</head>
+<body>
+<main>
+
+<h1>Keystone's OpenLP: User Manual</h1>
+<p class="sub">For the people running the screens on a Sunday. Version 1.0.0, based on OpenLP 3.1.7.</p>
+
+<nav>
+<strong>Contents</strong>
+<ol>
+  <li><a href="#quick">Sunday in six steps</a></li>
+  <li><a href="#screen">The main window</a></li>
+  <li><a href="#keys">Keyboard shortcuts</a></li>
+  <li><a href="#live">Live: show, blank and hide</a></li>
+  <li><a href="#songs">Songs</a></li>
+  <li><a href="#bibles">Bibles</a></li>
+  <li><a href="#presentations">Presentations</a></li>
+  <li><a href="#videos">Videos on presentation slides</a></li>
+  <li><a href="#themes">Themes</a></li>
+  <li><a href="#layouts">Layouts and monitors</a></li>
+  <li><a href="#updates">Updates, backups and help</a></li>
+  <li><a href="#trouble">When something goes wrong</a></li>
+</ol>
+</nav>
+
+<h2 id="quick">1. Sunday in six steps</h2>
+<ol>
+  <li><strong>Open last week's service</strong> or start a new one: <kbd>Ctrl</kbd>+<kbd>O</kbd> / <kbd>Ctrl</kbd>+<kbd>N</kbd>.</li>
+  <li><strong>Add items</strong>: find a song, Bible passage or presentation in the Library, select it and press
+      <kbd>+</kbd> to add it to the Service.</li>
+  <li><strong>Put them in order</strong>: drag them in the Service list, or use <kbd>Page&nbsp;Up</kbd> /
+      <kbd>Page&nbsp;Down</kbd>.</li>
+  <li><strong>Save</strong>: <kbd>Ctrl</kbd>+<kbd>S</kbd>. The saved file (.osz) holds everything, including videos
+      and presentations, so it can be opened on another computer.</li>
+  <li><strong>Before the service</strong>: blank the screen with <kbd>.</kbd> (full stop) so nothing shows by accident.</li>
+  <li><strong>During the service</strong>: select the item in the Service list and press <kbd>Enter</kbd> to send it
+      live, then <kbd>&darr;</kbd> / <kbd>&uarr;</kbd> to move through the slides. <kbd>&rarr;</kbd> jumps to the next
+      service item.</li>
+</ol>
+<div class="tip"><strong>Tip:</strong> look at a slide in <em>Preview</em> first; nothing there is seen by the
+congregation. Only <em>Live</em> goes to the projector.</div>
+
+<h2 id="screen">2. The main window</h2>
+<table>
+  <tr><th>Panel</th><th>What it is for</th></tr>
+  <tr><td><strong>Library</strong> (left)</td><td>Your songs, Bibles, presentations, images, media and custom slides.
+      The buttons under the menu (Songs, Bibles, Presentations…) switch between them with one click.</td></tr>
+  <tr><td><strong>Preview</strong></td><td>Check an item before it goes live. Private to you.</td></tr>
+  <tr><td><strong>Live</strong></td><td>What the congregation sees right now.</td></tr>
+  <tr><td><strong>Service</strong> (right)</td><td>Today's running order.</td></tr>
+  <tr><td><strong>Themes</strong></td><td>Backgrounds, fonts and text positions.</td></tr>
+</table>
+<p>Lost a panel? Use the <span class="menu">View</span> menu, or the function keys: <kbd>F8</kbd> Library,
+<kbd>F9</kbd> Service, <kbd>F10</kbd> Themes, <kbd>F11</kbd> Preview, <kbd>F12</kbd> Live. Pressing a key twice hides
+and shows the panel again, which also puts it back if it went astray.</p>
+
+<h2 id="keys">3. Keyboard shortcuts</h2>
+<p>All shortcuts can be changed in <span class="menu">Settings &rarr; Configure Shortcuts</span>. Click in the
+Live slide list first, so the keys go to the right place.</p>
+
+<h3>During the service</h3>
+<table>
+  <tr><th>Key</th><th>Does</th></tr>
+  <tr><td><kbd>&darr;</kbd> or <kbd>Page&nbsp;Down</kbd></td><td>Next slide</td></tr>
+  <tr><td><kbd>&uarr;</kbd> or <kbd>Page&nbsp;Up</kbd></td><td>Previous slide</td></tr>
+  <tr><td><kbd>&rarr;</kbd> / <kbd>&larr;</kbd></td><td>Next / previous item in the service</td></tr>
+  <tr><td><kbd>.</kbd> (full stop)</td><td>Blank the screen to black</td></tr>
+  <tr><td><kbd>T</kbd></td><td>Blank to the theme's background (no words)</td></tr>
+  <tr><td><kbd>D</kbd> or <kbd>Esc</kbd></td><td>Show the desktop (hides the projector output)</td></tr>
+  <tr><td><kbd>Space</kbd></td><td>Show the slides again</td></tr>
+  <tr><td><kbd>V</kbd> then <kbd>1</kbd>, <kbd>C</kbd>, <kbd>B</kbd>…</td><td>Jump to a part of the song: Verse 1,
+      Chorus, Bridge. Also <kbd>P</kbd> pre-chorus, <kbd>I</kbd> intro, <kbd>E</kbd> ending, <kbd>O</kbd> other</td></tr>
+  <tr><td><kbd>F7</kbd></td><td>Show an alert (e.g. "Parent of child 12, please come to the crèche")</td></tr>
+  <tr><td><kbd>Ctrl</kbd>+<kbd>F12</kbd></td><td>Hide or show the projector window, to reach windows behind it</td></tr>
+</table>
+
+<h3>In the Library and Service lists</h3>
+<table>
+  <tr><th>Key</th><th>Does</th></tr>
+  <tr><td><kbd>Enter</kbd></td><td>Library: show in Preview. Service: send live</td></tr>
+  <tr><td><kbd>Shift</kbd>+<kbd>Enter</kbd></td><td>Library: send straight to Live</td></tr>
+  <tr><td><kbd>+</kbd></td><td>Library: add to the service</td></tr>
+  <tr><td><kbd>Ctrl</kbd>+<kbd>F</kbd></td><td>Search the Library</td></tr>
+  <tr><td><kbd>Page&nbsp;Up</kbd> / <kbd>Page&nbsp;Down</kbd></td><td>Service: move the item up / down</td></tr>
+  <tr><td><kbd>Home</kbd> / <kbd>End</kbd></td><td>Service: move the item to the top / bottom</td></tr>
+  <tr><td><kbd>Delete</kbd></td><td>Remove the selected item</td></tr>
+</table>
+
+<h3>Everywhere</h3>
+<table>
+  <tr><th>Key</th><th>Does</th></tr>
+  <tr><td><kbd>Ctrl</kbd>+<kbd>N</kbd> / <kbd>Ctrl</kbd>+<kbd>O</kbd> / <kbd>Ctrl</kbd>+<kbd>S</kbd></td>
+      <td>New / open / save service</td></tr>
+  <tr><td><kbd>Ctrl</kbd>+<kbd>P</kbd></td><td>Print the order of service</td></tr>
+  <tr><td><kbd>F1</kbd></td><td>This manual</td></tr>
+  <tr><td><kbd>Alt</kbd>+<kbd>F4</kbd></td><td>Close Keystone (it asks to save the service first)</td></tr>
+</table>
+
+<h2 id="live">4. Live: show, blank and hide</h2>
+<p>The buttons above the Live panel do the same as <kbd>.</kbd>, <kbd>T</kbd>, <kbd>D</kbd> and <kbd>Space</kbd>.</p>
+<ul>
+  <li><strong>Blank (<kbd>.</kbd>)</strong> is the safe choice between items: black screen, nothing else.</li>
+  <li><strong>Theme (<kbd>T</kbd>)</strong> keeps the background up while the words go away, which looks smoother.</li>
+  <li><strong>Desktop (<kbd>D</kbd>/<kbd>Esc</kbd>)</strong> takes the projector output away completely.</li>
+  <li><strong>View &rarr; Hide Projector Window (<kbd>Ctrl</kbd>+<kbd>F12</kbd>)</strong> is for <em>you</em>, not
+      the congregation: when the projector window covers the Live panel or another window on your screen, this
+      tucks it away. Blanking and showing still work while it is hidden. Press it again to bring it back.</li>
+</ul>
+
+<h2 id="songs">5. Songs</h2>
+<ul>
+  <li><strong>Searching</strong>: type part of the title or words. The drop-down by the search box chooses titles,
+      lyrics, authors and so on.</li>
+  <li><strong>Editing</strong>: double-click a song. Each part (verse, chorus…) is its own slide. The <em>order</em>
+      box, e.g. <code>V1 C1 V2 C1 B1 C1</code>, sets the order it plays in, so a chorus is only typed once.</li>
+  <li><strong>SongSelect</strong> (CCLI): <span class="menu">File &rarr; Import &rarr; CCLI SongSelect</span>.
+      Search, or open SongSelect in your browser; songs you download there are imported automatically.</li>
+  <li><strong>Credits slide</strong>: songs can end with a slide showing the authors and copyright. Turn it on in
+      <span class="menu">Settings &rarr; Configure OpenLP &rarr; Songs</span>.</li>
+</ul>
+<div class="tip"><strong>Tip:</strong> don't type &copy; in a song's copyright field. Keystone adds it itself, so
+you would see "&copy; &copy; 2022". Long copyright lines wrap onto a second line; if they don't fit, make the
+footer box taller in the theme (<a href="#themes">section 9</a>).</div>
+
+<h2 id="bibles">6. Bibles</h2>
+<ul>
+  <li>Type a reference such as <code>John 3:16-18</code> or <code>Ps 23</code> and press <kbd>Enter</kbd>.</li>
+  <li>Add a second Bible to show two versions side by side, e.g. English and Afrikaans.</li>
+  <li>Bibles use the theme set in <span class="menu">Settings &rarr; Configure OpenLP &rarr; Bibles</span>, so
+      verses can look different from songs.</li>
+</ul>
+
+<h2 id="presentations">7. Presentations</h2>
+<ul>
+  <li>Add PowerPoint (.pptx) or LibreOffice (.odp) files in the Presentations library, then add them to the service
+      like anything else. PDFs work too.</li>
+  <li>Keystone shows them with <strong>LibreOffice Impress</strong> (or PowerPoint if it is installed and chosen in
+      settings).</li>
+  <li><strong>The first presentation is slow to open</strong>: LibreOffice has to start. Presentations with heavy
+      graphics or animations take longer to load. Send the presentation live once before the service starts and the
+      wait is out of the way.</li>
+  <li>Move through the slides with the same keys as songs. Animations play one click at a time.</li>
+</ul>
+<div class="warn"><strong>Videos inside a presentation</strong>: LibreOffice can crash or show a garbled picture when
+it plays them. When you add a presentation that has videos, Keystone warns you and says which slides. Take the videos
+out of the presentation and use the Video Trigger Manager instead (next section).</div>
+
+<h2 id="videos">8. Videos on presentation slides</h2>
+<p>Keystone plays the video itself, full screen over the slide, which is reliable. Each slide can have up to ten
+clips.</p>
+<ol>
+  <li>Delete the video from the presentation and save it. Keep the video file somewhere handy.</li>
+  <li>Add the presentation to the service. In the Service list, click the arrow next to it to see its slides.</li>
+  <li>Right-click the slide and choose <span class="menu">Video Trigger Manager…</span></li>
+  <li>Click <span class="menu">Add video…</span>, pick the file, give it a short description and drag its box to where
+      the video should be on the slide.</li>
+  <li>Tick <span class="menu">Play as soon as the slide is shown</span> if it should start by itself. Otherwise it
+      waits for you.</li>
+</ol>
+<p><strong>During the service</strong>, the clip boxes appear over the slide in the <em>Live</em> panel (only you see
+them). Click a box to play that clip. When it ends, the slide is back on the screen, so the speaker can carry on.</p>
+<div class="tip"><strong>Tip:</strong> the videos are saved inside the service file, so copying the .osz file to
+another computer takes them along.</div>
+
+<h2 id="themes">9. Themes</h2>
+<ul>
+  <li>Right-click a theme in the Themes panel and choose <span class="menu">Edit Theme</span> to open the <strong>Theme Manager</strong>. (Double-clicking a theme makes it the default theme instead.)</li>
+  <li>The two boxes on the preview are the <strong>main text</strong> and the <strong>footer</strong> (song title
+      and copyright). Drag them to move them, drag the edges to resize them. Click <span class="menu">Save</span>.</li>
+  <li><strong>Use the default position</strong> puts a box back where OpenLP would normally put it.</li>
+  <li>Font, size, colour, outline and shadow are set per box; the background (colour, gradient, picture or video)
+      on its own tab.</li>
+</ul>
+<div class="tip"><strong>Tip:</strong> white text with a black outline or shadow stays readable on almost any
+background.</div>
+
+<h2 id="layouts">10. Layouts and monitors</h2>
+<ul>
+  <li>The <strong>Layout</strong> box at the bottom right switches between arrangements of the panels:
+      <em>1 Monitor Default</em>, <em>2 Monitor Default</em> and any you save yourself. Keystone remembers which one
+      you use with one monitor and with two.</li>
+  <li><strong>Changing a layout</strong>: <span class="menu">View &rarr; Layout &rarr; Layout Setup Mode</span>
+      unlocks the panels. Drag them by their title bars, even onto a second monitor, then click
+      <span class="menu">Save</span> or <span class="menu">Save As New Layout…</span> and
+      <span class="menu">Done</span>.</li>
+  <li>In Setup Mode you can also put the Preview and Live slide lists above the picture or to its right.</li>
+  <li><strong>No projector?</strong> <span class="menu">View &rarr; Simulated Projector Mode</span> shows the live
+      output in a window laid out exactly as on an HD projector, for preparing at home.</li>
+  <li>Projector on the wrong screen? <span class="menu">Settings &rarr; Configure OpenLP &rarr; Screens</span>.</li>
+</ul>
+
+<h2 id="updates">11. Updates, backups and help</h2>
+<table>
+  <tr><th>Where</th><th>What</th></tr>
+  <tr><td><span class="menu">Help &rarr; Updates…</span></td><td>Checks for a newer Keystone, shows what's new and
+      installs it. Keystone closes (asking to save the service), updates itself and starts again. Windows asks
+      for permission: click <em>Yes</em>. Tick the box to check once a day at start-up.</td></tr>
+  <tr><td><span class="menu">Help &rarr; Version History…</span></td><td>Which version you have and what changed.</td></tr>
+  <tr><td><span class="menu">Help &rarr; Create Debug Report</span></td><td>Makes a folder of information to send
+      when something goes wrong.</td></tr>
+  <tr><td><span class="menu">Help &rarr; Debug Logging</span></td><td>Leave this <strong>off</strong> unless asked
+      to turn it on: it slows Keystone down.</td></tr>
+  <tr><td><span class="menu">Tools &rarr; Open Data Folder…</span></td>
+      <td>Where your songs, Bibles and themes are kept. Copy this folder to a USB stick now and then as a backup (close Keystone first).</td></tr>
+</table>
+<p><strong>Keystone and the normal OpenLP</strong> can be installed on the same computer. They keep separate songs,
+Bibles and settings. The first time Keystone starts it offers to <em>copy</em> everything from OpenLP; after that,
+changes in one are not seen in the other. Don't run both at the same time.</p>
+
+<h2 id="trouble">12. When something goes wrong</h2>
+<table>
+  <tr><th>Problem</th><th>Try this</th></tr>
+  <tr><td>Wrong thing on the screen</td><td>Press <kbd>.</kbd> to blank at once, then sort it out in Preview.</td></tr>
+  <tr><td>The projector window covers the Live panel</td><td><kbd>Ctrl</kbd>+<kbd>F12</kbd> hides it; press it again
+      to bring it back.</td></tr>
+  <tr><td>A panel has disappeared</td><td>Press its function key twice (<kbd>F11</kbd> Preview, <kbd>F12</kbd> Live…)
+      or choose your layout again in the Layout box.</td></tr>
+  <tr><td>Odd leftover pictures of panels</td><td>Minimise Keystone and restore it.</td></tr>
+  <tr><td>A presentation won't show or LibreOffice crashed</td><td>Send it live again; Keystone restarts LibreOffice.
+      If it has videos, use the Video Trigger Manager instead.</td></tr>
+  <tr><td>A video doesn't play</td><td>Check the file still exists (the Video Trigger Manager marks missing ones) and
+      that VLC is installed.</td></tr>
+  <tr><td>Keystone is slow</td><td>Make sure <span class="menu">Help &rarr; Debug Logging</span> is off.</td></tr>
+  <tr><td>Anything else</td><td><span class="menu">Help &rarr; Create Debug Report</span> and send the folder,
+      with a note of what you were doing.</td></tr>
+</table>
+<p class="sub">More detail on everything inherited from OpenLP: the OpenLP manual at
+<a href="https://manual.openlp.org/">manual.openlp.org</a>.</p>
+
+</main>
+</body>
+</html>
