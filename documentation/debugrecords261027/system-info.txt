@@ -1,0 +1,10 @@
+Keystone's OpenLP Custom 1.0.0 (based on OpenLP 3.1.7)
+Report created: 2026-10-27 22:33:24
+Operating system: Windows-11-10.0.26200-SP0 (AMD64)
+Python: 3.12.10 (tags/v3.12.10:0cc8128, Apr  8 2025, 12:21:36) [MSC v.1943 64 bit (AMD64)]
+Qt: 5.15.2  PyQt: 5.15.11
+VLC: 3.0.24 Vetinari
+
+Screens:
+  0: \\.\DISPLAY1 1366x768 at (0, 0), scale 1.0 (primary)
+  1: \\.\DISPLAY2 1280x720 at (1366, 44), scale 1.0

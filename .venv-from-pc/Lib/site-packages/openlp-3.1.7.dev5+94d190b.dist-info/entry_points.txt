@@ -1,0 +1,2 @@
+[gui_scripts]
+openlp = openlp.__main__:start

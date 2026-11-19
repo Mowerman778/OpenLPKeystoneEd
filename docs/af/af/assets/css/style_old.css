@@ -1,0 +1,180 @@
+.full-width {
+	width: 100%;	
+}
+
+
+.textWarning {
+	font-size: 70%;
+	line-height: 120%;
+	vertical-align: auto;
+	font-weight: bold;
+	margin-top: 1.4em;
+}
+
+.textOptions {
+	margin-bottom: 0px;
+	margin-top: 0px;
+}
+
+.textAudio {
+	margin-top: 10px;
+	margin-bottom: 5px;
+}
+
+.textHeader {
+	margin-bottom: 15px;
+	padding-bottom: 0px;
+	line-height: 140%;
+	/* [disabled]margin-top: 15px; */
+}
+.textBody p {
+	/* [disabled]border-bottom-style: solid; */
+	margin-bottom: 0px;
+	/* [disabled]padding-bottom: 5px; */
+	/* [disabled]border-bottom-color: #E2E2E2; */
+	/* [disabled]padding-top: 5px; */
+	/* [disabled]border-bottom-width: 1px; */
+	line-height: 1.5em !important;
+}
+#textBody br {
+margin-top: 3px !important;
+}
+
+#textBody a {
+	color: #000;
+}
+#textBody a:visited {
+	text-decoration: none;
+	color: #000;
+	background: transparent;
+}
+#textBody a:hover {
+	text-decoration: none;
+	color: #000;
+	background-color: #F3F1EB;
+}
+#textBody a:focus {
+	text-decoration: none;
+	color: #333;
+	background: transparent;
+}
+#textBody a:active {
+	text-decoration: none;
+	background: transparent;
+}
+.verse {
+	font-weight: normal;
+	color: #999;
+	font-size: 80%;
+	/* [disabled]vertical-align: super; */
+}
+.textNav {
+	text-align: left;
+	padding-top: 5px;
+	padding-right: 0px;
+	padding-bottom: 0px;
+	padding-left: 0px;
+}
+.textFooter {
+	text-align: right;
+	padding-top: 0px;
+	padding-right: 0px;
+	padding-bottom: 5px;
+	padding-left: 0px;
+	line-height: 200%;
+}
+.align-right {
+	text-align: right;
+}
+
+/* font resizer styles */
+
+.fontresize {
+margin: 0 0.5em 0 0;
+}
+
+.decreaseFont {
+	font-size: 100%;
+}
+
+.normalizeFont {
+font-size: 100%;
+}
+
+.increaseFont {
+	font-size: 100%;
+}
+
+#fontResizer {
+margin: 0 0 1em 0;
+font-size: 100%;
+font-weight: bold;	
+
+}
+
+#fontResizer a:link {
+	text-decoration: none;
+}
+#fontResizer a:visited {
+	text-decoration: none;
+}
+#fontResizer a:hover {
+	text-decoration: none;
+}	
+
+#fontResize, .block-fontResizer {
+float: right;
+margin: 0;
+}
+.breadCrumbs {
+	font-size: 75%;
+	padding-top: 0.5em;
+	text-transform: none;
+	font-style: normal;
+	font-weight: bold;
+	/* [disabled]padding-left: 0.8em; */
+}
+xul, xol {
+  
+  list-style-image: url('images/sound.gif' ); vertical-align:middle;
+}
+ul.audio {
+list-style-image: url('../img/audio-headphones.png' ); 
+	vertical-align:middle;
+	margin-left: 1.0em;
+	padding-left: 0.8em;
+  margin-top: 0.8em;
+  margin-bottom: 0.8em;
+	}
+ul.book {
+list-style-image: url('../img/book.png' ); 
+	vertical-align:middle;
+	margin-left: 1.0em;
+	padding-left: 0.8em;
+  margin-top: 0.8em;
+  margin-bottom: 0.8em;
+	}
+	ul.book_open {
+list-style-image: url('../img/book-open.png' ); 
+	vertical-align:middle;
+	margin-left: 1.0em;
+	padding-left: 0.8em;
+  margin-top: 0.8em;
+  margin-bottom: 0.8em;
+	}
+	ul.read {
+list-style-image: url('../img/read.png' ); 
+	vertical-align:middle;
+	margin-left: 1.0em;
+	padding-left: 0.8em;
+  margin-top: 0.8em;
+  margin-bottom: 0.8em;
+	}
+	ul.multi {
+list-style-image: url('../img/multi.png' ); 
+	vertical-align:middle;
+	margin-left: 1.0em;
+	padding-left: 0.8em;
+  margin-top: 0.8em;
+  margin-bottom: 0.8em;
+	}

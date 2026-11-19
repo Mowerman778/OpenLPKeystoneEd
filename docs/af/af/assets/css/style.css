@@ -1,0 +1,306 @@
+.full-width {
+	width: 100%;	
+}
+.text_ind {
+	font-family: Arial, Helvetica, sans-serif;
+	font-size: 18px;
+	font-weight: normal;
+	font-style: normal;
+	}
+	.text_ind2 {
+	font-size: 115%;
+	padding-top: 10.5em;
+	font-style: oblique;
+	color: #000080;
+	font-weight: bold;
+	/* [disabled]padding-left: 0.8em; */
+}
+.toccolours{
+border:1px solid #aaa;
+background-color:#f9f9f9;
+padding:5px;font-size:100%
+}
+div.thumbinner{
+border:1px solid #cccccc;
+padding:3px !important;
+background-color:White;
+font-size:100%;
+text-align:center;
+overflow:hidden}
+
+.textWarning {
+	font-size: 70%;
+	line-height: 120%;
+	vertical-align: auto;
+	font-weight: bold;
+	margin-top: 1.4em;
+}
+
+.textOptions {
+	margin-bottom: 0px;
+	margin-top: 0px;
+}
+
+.textAudio {
+	margin-top: 10px;
+	margin-bottom: 5px;
+}
+
+.textHeader {
+	margin-bottom: 15px;
+	padding-bottom: 0px;
+	line-height: 140%;
+	/* [disabled]margin-top: 15px; */
+}
+.textBody p {
+	/* [disabled]border-bottom-style: solid; */
+	margin-bottom: 0px;
+	/* [disabled]padding-bottom: 5px; */
+	/* [disabled]border-bottom-color: #E2E2E2; */
+	/* [disabled]padding-top: 5px; */
+	/* [disabled]border-bottom-width: 1px; */
+	line-height: 1.5em !important;
+}
+#textBody br {
+margin-top: 3px !important;
+}
+
+#textBody a {
+	color: #000;
+}
+#textBody a:visited {
+	text-decoration: none;
+	color: #000;
+	background: transparent;
+}
+#textBody a:hover {
+	text-decoration: none;
+	color: #000;
+	background-color: #F3F1EB;
+}
+#textBody a:focus {
+	text-decoration: none;
+	color: #333;
+	background: transparent;
+}
+#textBody a:active {
+	text-decoration: none;
+	background: transparent;
+}
+.verse {
+	font-weight: normal;
+	color: #999;
+	font-size: 80%;
+	/* [disabled]vertical-align: super; */
+}
+.textNav {
+	text-align: left;
+	padding-top: 5px;
+	padding-right: 0px;
+	padding-bottom: 0px;
+	padding-left: 0px;
+}
+.textFooter {
+	text-align: right;
+	padding-top: 0px;
+	padding-right: 0px;
+	padding-bottom: 5px;
+	padding-left: 0px;
+	line-height: 200%;
+}
+.align-right {
+	text-align: right;
+}
+
+/* font resizer styles */
+
+.fontresize {
+margin: 0 0.5em 0 0;
+}
+
+.decreaseFont {
+	font-size: 100%;
+}
+
+.normalizeFont {
+font-size: 100%;
+}
+
+.increaseFont {
+	font-size: 100%;
+}
+
+#fontResizer {
+margin: 0 0 1em 0;
+font-size: 100%;
+font-weight: bold;	
+
+}
+
+#fontResizer a:link {
+	text-decoration: none;
+}
+#fontResizer a:visited {
+	text-decoration: none;
+}
+#fontResizer a:hover {
+	text-decoration: none;
+}	
+
+#fontResize, .block-fontResizer {
+float: right;
+margin: 0;
+}
+.breadCrumbs {
+	font-size: 75%;
+	padding-top: 0.5em;
+	text-transform: none;
+	font-style: normal;
+	font-weight: bold;
+	/* [disabled]padding-left: 0.8em; */
+}
+
+ul.list-bibles {
+list-style-image: url('../img/book.png' ); 
+display: inline;
+	}
+ul.list-audio {
+list-style-image: url('../img/audio-headphones.png' ); 
+display: xinline;
+margin-left: 1.0em;
+	}
+	ul.list-audio_ltr {
+list-style-imagex: url('../img/audio-headphones.png' ); 
+display: right;
+margin-left: 1.0em;
+
+	}
+ul.list-verses {
+list-style-image: url('../img/openbook.png' );
+<!--display: xinline;-->
+margin-left: 1.0em;
+	}
+ul.list-multi {
+list-style-image: url('../img/multi.png' ); 
+display: xinline;
+margin-left: 1.0em;
+	}
+ul.list-multi-2 {
+list-style-image: url('../img/multi-2.png' ); 
+display: xinline;
+margin-left: 1.0em;
+	}
+ul.list-page {
+list-style-image: url('../img/page.png' ); 
+display: xinline;
+margin-left: 1.0em;
+	}
+ul.list-download {
+list-style-image: url('../img/download.png' ); 
+display: xinline;
+margin-left: 1.0em;
+	}
+ul.list-www {
+list-style-image: url('../img/www.png' ); 
+display: xinline;
+margin-left: 1.0em;
+	}
+ul.book_open {
+list-style-image: url('../img/book-open.png' ); 
+	vertical-align:middle;
+	margin-left: 1.0em;
+	padding-left: 0.8em;
+  margin-top: 0.8em;
+  margin-bottom: 0.8em;
+	}
+ul.read {
+list-style-image: url('../img/read.png' ); 
+	vertical-align:middle;
+	margin-left: 1.0em;
+	padding-left: 0.8em;
+  margin-top: 0.8em;
+  margin-bottom: 0.8em;
+	}
+	span.c1 {color: red; font-size: 120%}
+.place {
+	font-style: oblique;
+	color: #000080;
+	font-weight: normal;
+}
+.person {
+	font-style: italic;
+	color: #800008;
+	font-weight: bold;
+
+}
+.word {
+	font-style: normal;
+	color: #c00000;
+	font-weight: normal;
+}
+.rslides {
+  position: relative;
+  list-style: none;
+  overflow: hidden;
+  width: 100%;
+  padding: 0;
+  margin: 0;
+  }
+
+.rslides ul {
+	margin-top: 10px;
+}
+.rslides li {
+  -webkit-backface-visibility: hidden;
+  position: absolute;
+  display: none;
+  width: 100%;
+  left: 0;
+  top: 0;
+  margin-left: 0px;
+  }
+
+.rslides li:first-child {
+  position: relative;
+  display: block;
+  float: left;
+  }
+
+.rslides img {
+  display: block;
+  height: auto;
+  float: left;
+  width: 100%;
+  border: 0;
+  }
+.noteBox {
+	BORDER-RIGHT: #909090 1px solid; PADDING-RIGHT: 0.5em; BORDER-TOP: #909090 1px solid; PADDING-LEFT: 0.5em; PADDING-BOTTOM: 0.7em; BORDER-LEFT: #909090 1px solid; PADDING-TOP: 0.5em; BORDER-BOTTOM: #909090 1px solid; BACKGROUND-COLOR: #f1f1f1; TEXT-ALIGN: justify
+}
+.noteBox_2023 {
+	BORDER-RIGHT: #AA2023 1px solid; PADDING-RIGHT: 0.5em; BORDER-TOP: #AA2023 1px solid; PADDING-LEFT: 0.5em; BORDER-LEFT: #AA2023 1px solid; BORDER-BOTTOM: #AA2023 1px solid; PADDING-BOTTOM: 0.7em; BACKGROUND-COLOR: #ffffff; TEXT-ALIGN: justify
+}
+.whitestrip {
+	BORDER-RIGHT: #f1f1f1 1px solid; PADDING-RIGHT: 0.5em; BORDER-TOP: #f1f1f1 1px solid; PADDING-LEFT: 0.5em; xFONT-SIZE: 12pt; PADDING-BOTTOM: 0.5em; MARGIN: 0px; BORDER-LEFT: #f1f1f1 1px solid; PADDING-TOP: 0.5em; BORDER-BOTTOM: #f1f1f1 1px solid; BACKGROUND-COLOR: #ffffff; TEXT-ALIGN: center
+}
+.block {
+	BORDER-RIGHT: 1px solid #aaa; PADDING-RIGHT: 0.7em; BORDER-TOP: 1px solid #aaa; PADDING-LEFT: 0.7em; FONT-SIZE: 100%; font-style: italic; PADDING-BOTTOM: 0.5em; MARGIN: 0px; BORDER-LEFT: 1px solid #aaa; PADDING-TOP: 1.5em; BORDER-BOTTOM: 1px solid #aaa; BACKGROUND-COLOR: #f9f9f9; TEXT-ALIGN: justify
+}
+.bqstart {
+     float: left;
+     height: 45px;
+     margin-top: -40px;
+	 margin-left: -30px;
+     padding-top: 0px;
+     margin-bottom: -10px;
+     font-size: 700%;
+     color: #AA2023;
+ }
+ .bqend {
+     float: right;
+     height: 15px;
+     margin-top: -50px;
+     padding-top: -5px;
+     font-size: 700%;
+     color: #AA2023;
+ }
+	

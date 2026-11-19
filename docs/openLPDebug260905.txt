@@ -1,0 +1,108 @@
+**OpenLP Bug Report**
+Version: {'full': '3.1.7', 'version': '3.1.7', 'build': None}
+
+--- Details of the Exception. ---
+
+The external screen was disconnected and I was in the 
+
+ --- Exception Traceback ---
+Traceback (most recent call last):
+  File "D:\Projects\OpenLPUG-src\.venv\Lib\site-packages\sqlalchemy\engine\base.py", line 1969, in _exec_single_context
+    self.dialect.do_execute(
+  File "D:\Projects\OpenLPUG-src\.venv\Lib\site-packages\sqlalchemy\engine\default.py", line 952, in do_execute
+    cursor.execute(statement, parameters)
+sqlite3.OperationalError: database or disk is full
+
+The above exception was the direct cause of the following exception:
+
+Traceback (most recent call last):
+  File "D:\Projects\OpenLPUG-src\openlp\core\widgets\wizard.py", line 233, in on_current_id_changed
+    self.perform_wizard()
+  File "D:\Projects\OpenLPUG-src\openlp\plugins\songs\forms\songimportform.py", line 334, in perform_wizard
+    importer.do_import()
+  File "D:\Projects\OpenLPUG-src\openlp\plugins\songs\lib\importers\openlyrics.py", line 80, in do_import
+    self._try_import_as_opensong(file_path)
+  File "D:\Projects\OpenLPUG-src\openlp\plugins\songs\lib\importers\openlyrics.py", line 108, in _try_import_as_opensong
+    OpenSongImport.do_import_file(self, opensong_file)
+  File "D:\Projects\OpenLPUG-src\openlp\plugins\songs\lib\importers\opensong.py", line 322, in do_import_file
+    if not self.finish():
+           ^^^^^^^^^^^^^
+  File "D:\Projects\OpenLPUG-src\openlp\plugins\songs\lib\importers\songimport.py", line 441, in finish
+    self.manager.save_object(song)
+  File "D:\Projects\OpenLPUG-src\openlp\core\db\manager.py", line 102, in save_object
+    self.session.commit()
+  File "D:\Projects\OpenLPUG-src\.venv\Lib\site-packages\sqlalchemy\orm\scoping.py", line 596, in commit
+    return self._proxied.commit()
+           ^^^^^^^^^^^^^^^^^^^^^^
+  File "D:\Projects\OpenLPUG-src\.venv\Lib\site-packages\sqlalchemy\orm\session.py", line 2035, in commit
+    trans.commit(_to_root=True)
+  File "<string>", line 2, in commit
+  File "D:\Projects\OpenLPUG-src\.venv\Lib\site-packages\sqlalchemy\orm\state_changes.py", line 137, in _go
+    ret_value = fn(self, *arg, **kw)
+                ^^^^^^^^^^^^^^^^^^^^
+  File "D:\Projects\OpenLPUG-src\.venv\Lib\site-packages\sqlalchemy\orm\session.py", line 1316, in commit
+    self._prepare_impl()
+  File "<string>", line 2, in _prepare_impl
+  File "D:\Projects\OpenLPUG-src\.venv\Lib\site-packages\sqlalchemy\orm\state_changes.py", line 137, in _go
+    ret_value = fn(self, *arg, **kw)
+                ^^^^^^^^^^^^^^^^^^^^
+  File "D:\Projects\OpenLPUG-src\.venv\Lib\site-packages\sqlalchemy\orm\session.py", line 1290, in _prepare_impl
+    self.session.flush()
+  File "D:\Projects\OpenLPUG-src\.venv\Lib\site-packages\sqlalchemy\orm\session.py", line 4353, in flush
+    self._flush(objects)
+  File "D:\Projects\OpenLPUG-src\.venv\Lib\site-packages\sqlalchemy\orm\session.py", line 4488, in _flush
+    with util.safe_reraise():
+         ^^^^^^^^^^^^^^^^^^^
+  File "D:\Projects\OpenLPUG-src\.venv\Lib\site-packages\sqlalchemy\util\langhelpers.py", line 122, in __exit__
+    raise exc_value.with_traceback(exc_tb)
+  File "D:\Projects\OpenLPUG-src\.venv\Lib\site-packages\sqlalchemy\orm\session.py", line 4449, in _flush
+    flush_context.execute()
+  File "D:\Projects\OpenLPUG-src\.venv\Lib\site-packages\sqlalchemy\orm\unitofwork.py", line 465, in execute
+    rec.execute(self)
+  File "D:\Projects\OpenLPUG-src\.venv\Lib\site-packages\sqlalchemy\orm\unitofwork.py", line 641, in execute
+    util.preloaded.orm_persistence.save_obj(
+  File "D:\Projects\OpenLPUG-src\.venv\Lib\site-packages\sqlalchemy\orm\persistence.py", line 94, in save_obj
+    _emit_insert_statements(
+  File "D:\Projects\OpenLPUG-src\.venv\Lib\site-packages\sqlalchemy\orm\persistence.py", line 1234, in _emit_insert_statements
+    result = connection.execute(
+             ^^^^^^^^^^^^^^^^^^^
+  File "D:\Projects\OpenLPUG-src\.venv\Lib\site-packages\sqlalchemy\engine\base.py", line 1421, in execute
+    return meth(
+           ^^^^^
+  File "D:\Projects\OpenLPUG-src\.venv\Lib\site-packages\sqlalchemy\sql\elements.py", line 526, in _execute_on_connection
+    return connection._execute_clauseelement(
+           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "D:\Projects\OpenLPUG-src\.venv\Lib\site-packages\sqlalchemy\engine\base.py", line 1643, in _execute_clauseelement
+    ret = self._execute_context(
+          ^^^^^^^^^^^^^^^^^^^^^^
+  File "D:\Projects\OpenLPUG-src\.venv\Lib\site-packages\sqlalchemy\engine\base.py", line 1848, in _execute_context
+    return self._exec_single_context(
+           ^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "D:\Projects\OpenLPUG-src\.venv\Lib\site-packages\sqlalchemy\engine\base.py", line 1988, in _exec_single_context
+    self._handle_dbapi_exception(
+  File "D:\Projects\OpenLPUG-src\.venv\Lib\site-packages\sqlalchemy\engine\base.py", line 2365, in _handle_dbapi_exception
+    raise sqlalchemy_exception.with_traceback(exc_info[2]) from e
+  File "D:\Projects\OpenLPUG-src\.venv\Lib\site-packages\sqlalchemy\engine\base.py", line 1969, in _exec_single_context
+    self.dialect.do_execute(
+  File "D:\Projects\OpenLPUG-src\.venv\Lib\site-packages\sqlalchemy\engine\default.py", line 952, in do_execute
+    cursor.execute(statement, parameters)
+sqlalchemy.exc.OperationalError: (sqlite3.OperationalError) database or disk is full
+[SQL: INSERT INTO songs (title, alternate_title, lyrics, verse_order, copyright, comments, ccli_number, theme_name, search_title, search_lyrics, create_date, last_modified, "temporary") VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, CURRENT_TIMESTAMP, CURRENT_TIMESTAMP, ?) RETURNING id, create_date, last_modified]
+[parameters: ('I Will Wait for You', '', '<?xml version=\'1.0\' encoding=\'UTF-8\'?>\n<song version="1.0"><lyrics><verse type="v" label="1"><![CDATA[[Intro]\nLord, from the depths I call to Y ... (1213 characters truncated) ... it for You\nThrough the storm and through the night\nI will wait for You\nSurely wait for You\nFor Your love is my delight]]></verse></lyrics></song>', '', '', '', '', '', 'i will wait for you@', ' intro lord from the depths i call to you lord hear me from on high and give attention to my voice when i for mercy cry out of the depths i cry to yo ... (730 characters truncated) ... d i will wait for you i will wait for you through the storm and through the night i will wait for you surely wait for you for your love is my delight', 0)]
+(Background on this error at: https://sqlalche.me/e/20/e3q8)
+
+--- System information ---
+Platform: Windows-10-10.0.19045-SP0
+
+--- Library Versions ---
+Python: 3.12.10
+PyQt5: 5.15.11
+SQLAlchemy: 2.0.52
+Alembic: 1.19.1
+BeautifulSoup: 4.15.0
+lxml: 6.1.2
+Chardet: 7.6.0
+PyEnchant: -
+Mako: 1.4.1
+VLC: OK
+PyUNO: -

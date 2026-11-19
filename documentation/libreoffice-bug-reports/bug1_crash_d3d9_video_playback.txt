@@ -1,0 +1,87 @@
+SUMMARY
+Impress on Windows crashes in d3d9.dll (0xc0000005 at d3d9.dll+0x5ffa3) a few seconds into video playback when another LibreOffice window is open (e.g. slide show started via UNO API, or Start Center open)
+
+COMPONENT: Impress (also seen when inserting video in the editor)
+VERSION: 26.8.1.1
+HARDWARE: x86-64 (AMD64)
+OS: Windows (All) - tested on Windows 11 Pro, build 26200
+
+
+DESCRIPTION
+
+soffice.bin crashes with an access violation inside d3d9.dll while a video plays in Impress.
+The fault is identical in every crash (60+ crashes logged on this machine):
+
+    Faulting application: soffice.bin 26.8.1.1
+    Faulting module:      d3d9.dll 10.0.26100.9549
+    Exception code:       0xc0000005
+    Fault offset:         0x000000000005ffa3
+
+Media modules loaded at the time of the crash (from the Windows Error Report):
+mfplay.dll, mfplat.dll, mfreadwrite.dll, d3d9.dll, d3d11.dll, dxgi.dll
+(mfplay.dll and d3d9.dll are both 10.0.26100.9549.)
+
+The crash is not tied to the end of the clip: with a 20 s clip it crashes 8-11 s into playback.
+
+When the slide show is the only LibreOffice window, playback works: "soffice --show deck.odp" with
+nothing else open played the same 20 s clip for 40 s without a crash (several runs).
+
+
+STEPS TO REPRODUCE
+
+A) Through the UNO API (3 out of 3 runs crashed, 8.6-9.6 s after the video slide was shown)
+   1. Start LibreOffice listening on a socket:
+        soffice.exe --norestore --nologo --nodefault "--accept=socket,host=localhost,port=2002;urp;"
+   2. Run the attached script with LibreOffice's bundled Python:
+        "C:\Program Files\LibreOffice\program\python.exe" repro_api_slideshow_video.py clip_640x360_20s.mp4
+      The script creates a 2-slide presentation with the attached clip on slide 2, calls
+      XPresentation.start(), then XSlideShowController.gotoSlideIndex(1).
+
+B) Without the API (2 out of 2 runs crashed, about 4 s into playback)
+   1. Create a presentation whose first slide holds the attached clip_640x360_20s.mp4, save it as deck.odp.
+   2. Close LibreOffice. Start LibreOffice so the Start Center is open.
+   3. From a command prompt run:  soffice.exe --show deck.odp
+   (Running step 3 with no Start Center open - with soffice --nodefault already running, or with no
+   LibreOffice running at all - did NOT crash.)
+
+C) In the editor (1 out of 1)
+   1. File > New > Presentation.
+   2. Insert > Audio or Video..., choose an MP4 (H.264/AAC, 360x640), keep "Link" unticked.
+   3. LibreOffice crashes while the video is being inserted. Same d3d9.dll+0x5ffa3 fault.
+
+
+ACTUAL RESULTS
+soffice.bin terminates with 0xc0000005 in d3d9.dll. The Document Recovery dialog appears on the next start.
+
+EXPECTED RESULTS
+The video plays to the end and LibreOffice keeps running.
+
+
+WHAT DID NOT CHANGE THE RESULT
+- Clip length (4 s and 20 s clips both crash; the 20 s clip crashes mid-playback).
+- Which display shows the slide show (both displays are on the same Intel GPU).
+- Loading the document hidden or visible, and hiding or showing the document window.
+- Calling the API from the UNO bridge thread or from the main thread (via com.sun.star.awt.AsyncCallback).
+- Looping the video.
+- SAL_DISABLESKIA=1 and SAL_DISABLEGL=1 (tested in an earlier round of tests).
+
+
+ADDITIONAL INFO
+
+Version: 26.8.1.1 (X86_64)
+Build ID: bf6ef2662401c7d6dce671ab4deb26ee0af3a7c1
+OS: Windows 11 Pro, build 26200, x64
+Locale: en-ZA
+UI render: Skia enabled
+CPU: Intel Core i7-6700HQ, 16 GB RAM
+GPU 1: Intel HD Graphics 530, driver 31.0.101.2111 (drives both displays)
+GPU 2: NVIDIA GeForce GTX 960M, driver 24.21.13.9924 (laptop with switchable graphics)
+Displays: 1366x768 (primary) + 1280x720
+
+Context: found while integrating Impress as the presentation engine for OpenLP (church projection
+software), which drives Impress slide shows through the UNO/COM API on Windows. Scenario A is what
+OpenLP does, so any presentation with a video crashes LibreOffice for its users.
+
+ATTACHMENTS
+- repro_api_slideshow_video.py   self-contained reproducer for scenario A
+- clip_640x360_20s.mp4           20 s H.264/AAC test clip (colour bars + 440 Hz tone)

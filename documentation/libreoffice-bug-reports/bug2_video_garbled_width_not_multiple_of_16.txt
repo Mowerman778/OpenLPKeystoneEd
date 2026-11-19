@@ -1,0 +1,66 @@
+SUMMARY
+Impress on Windows: H.264 video whose width is not a multiple of 16 plays as diagonal/sheared stripes (row stride mismatch)
+
+COMPONENT: Impress
+VERSION: 26.8.1.1
+HARDWARE: x86-64 (AMD64)
+OS: Windows (All) - tested on Windows 11 Pro, build 26200
+
+
+DESCRIPTION
+
+In a slide show, an MP4 video plays correctly only if its frame width is a multiple of 16.
+Otherwise every row is offset from the previous one, so the picture turns into diagonal stripes.
+This looks like the row pitch (stride) of the decoded frame being ignored: the decoder pads each
+row to a multiple of 16 pixels, but the frame is read as if rows were exactly "width" pixels long.
+
+Frame height does not matter: 640x360 (360 is not a multiple of 16) plays correctly.
+
+Test clips, all made by the same generator, differing only in size
+(H.264 High profile, yuv420p, 25 fps, AAC audio):
+
+    352x640   OK
+    360x640   GARBLED
+    368x640   OK
+    1000x562  GARBLED
+    1008x560  OK
+    640x360   OK
+
+Real-world impact: phone videos recorded in portrait are often 360 or 1080 pixels wide.
+Neither is a multiple of 16, so they would all be affected (1080x1920 inferred from the rule above,
+not tested separately).
+
+
+STEPS TO REPRODUCE
+1. File > New > Presentation.
+2. Insert > Audio or Video..., choose the attached clip_360x640.mp4.
+3. Slide Show > Start from First Slide.
+4. Repeat with clip_352x640.mp4 for comparison.
+
+(We started the slide shows with "soffice.exe --show deck.pptx" from a cold start, so the crash in
+bug <BUG1_NUMBER> does not get in the way.)
+
+
+ACTUAL RESULTS
+clip_360x640.mp4 and clip_1000x562.mp4 show diagonal coloured stripes instead of vertical colour bars.
+
+EXPECTED RESULTS
+All clips show vertical colour bars, as clip_352x640.mp4 and clip_1008x560.mp4 do.
+
+
+ADDITIONAL INFO
+
+Version: 26.8.1.1 (X86_64)
+Build ID: bf6ef2662401c7d6dce671ab4deb26ee0af3a7c1
+OS: Windows 11 Pro, build 26200, x64
+Locale: en-ZA
+CPU: Intel Core i7-6700HQ, 16 GB RAM
+GPU: Intel HD Graphics 530, driver 31.0.101.2111 (NVIDIA GTX 960M also present)
+The video path uses mfplay.dll (Media Foundation), loaded from C:\Windows\System32 (10.0.26100.9549).
+
+ATTACHMENTS
+- width_comparison.png   screenshots of all five clips during a slide show, labelled
+- clip_352x640.mp4       OK
+- clip_360x640.mp4       garbled
+- clip_1000x562.mp4      garbled
+- clip_1008x560.mp4      OK
